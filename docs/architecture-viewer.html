@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Imari — architecture viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0f172a; }
+  #viewer { width: 100vw; height: 100vh; }
+  .controls { position: fixed; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 10; }
+  .controls button { background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 14px; }
+  .controls button:hover { background: #334155; }
+  .hint { position: fixed; bottom: 12px; left: 12px; color: #64748b; font: 12px sans-serif; }
+</style>
+</head>
+<body>
+  <div class="controls">
+    <button onclick="pz.zoomBy(1.3)">＋ Zoom in</button>
+    <button onclick="pz.zoomBy(1/1.3)">－ Zoom out</button>
+    <button onclick="pz.reset()">⟲ Reset</button>
+    <button onclick="pz.fit()">⤢ Fit</button>
+    <button onclick="pz.zoomIn()">🔍</button>
+  </div>
+  <div id="viewer">
+    <object id="svgObj" data="architecture.svg" type="image/svg+xml" width="100%" height="100%"></object>
+  </div>
+  <div class="hint">Drag to pan · scroll wheel to zoom · use the buttons above</div>
+  <script>
+    window.addEventListener('load', () => {
+      const obj = document.getElementById('svgObj');
+      obj.addEventListener('load', () => {
+        window.pz = svgPanZoom(obj.contentDocument.querySelector('svg'), {
+          zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,
+          minZoom: 0.3, maxZoom: 10,
+        });
+      });
+    });
+  </script>
+</body>
+</html>

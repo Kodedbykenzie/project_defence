@@ -1,5 +1,12 @@
 # Imari — personalised financial literacy learning platform
 
+![CI](https://github.com/Kodedbykenzie/project_defence/actions/workflows/ci.yml/badge.svg)
+![Node](https://img.shields.io/badge/node-20%20LTS-brightgreen)
+![Solidity](https://img.shields.io/badge/solidity-0.8.24-blue)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
+> Suggested CI: `.github/workflows/ci.yml` running `blockchain` tests (`npm test`), backend tests (`npm test`), and frontend typecheck/lint on every push.
+
 Monorepo for the Imari capstone project: *Design, development and evaluation of a personalised financial literacy learning platform* — Precious Chibundu Mozia, supervised by Thadee Gatera. Pilot cohort: university students in Kigali (African Leadership University).
 
 Imari assesses each student's financial-literacy level, recommends modules for their weak competency domains, tracks progress, and issues **blockchain-verifiable micro-credentials** once competency criteria are met.
@@ -45,7 +52,9 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 
 ## 2. Architecture & system topology
 
-```
+![Imari system topology](docs/architecture.svg)
+
+<details><summary>ASCII fallback</summary>
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              BROWSER (SPA)                                  │
 │  frontend/ — React 18 + TS + Vite + Tailwind                                │
@@ -69,6 +78,8 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 │ normalized app data, triggers │     leave the personal-data boundary       │
 └───────────────────────────────┘
 ```
+
+</details>
 
 **Topology notes**
 
