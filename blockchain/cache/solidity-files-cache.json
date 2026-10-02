@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/User/Downloads/project_defence/project_defence/blockchain/contracts/ImariCredentialRegistry.sol": {
+      "lastModificationDate": 1790881332353,
+      "contentHash": "2bfce6911783dac89e53dfb783263692",
+      "sourceName": "contracts/ImariCredentialRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "ImariCredentialRegistry"
+      ]
+    }
+  }
+}

@@ -1,0 +1,166 @@
+openapi: 3.1.0
+info:
+  title: Imari API
+  version: 0.1.0
+  description: Personalised financial literacy platform — ALU pilot.
+servers:
+  - url: https://api.imari.app/v1
+security:
+  - bearer: []
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Error:
+      type: object
+      required: [code]
+      properties: { code: { type: string, example: INVITE_EXPIRED }, message: { type: string } }
+    Invite:
+      type: object
+      properties:
+        code: { type: string, example: ALU-PILOT }
+        email: { type: [string, 'null'] }
+        maxUses: { type: [integer, 'null'] }
+        uses: { type: integer }
+        expiresAt: { type: string, format: date-time }
+        status: { type: string, enum: [active, used, expired, revoked] }
+    Preferences:
+      type: object
+      properties:
+        language: { type: string, enum: [en, rw, fr] }
+        textSize: { type: string, enum: [sm, md, lg] }
+        reduceMotion: { type: boolean }
+        toasts: { type: boolean }
+        mutedKinds: { type: array, items: { type: string } }
+        emailDigest: { type: string, enum: [off, daily, weekly] }
+        interests: { type: array, items: { type: string } }
+        goal: { type: string }
+    DomainScore:
+      type: object
+      properties: { domain: { type: string }, score: { type: integer } }
+    Recommendation:
+      type: object
+      properties:
+        moduleSlug: { type: string, example: emergency-saving }
+        domain: { type: string }
+        priority: { type: integer }
+        score: { type: integer }
+        reason: { type: string }
+    Attempt:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [pre, post] }
+        total: { type: integer }
+        domainScores: { type: array, items: { $ref: '#/components/schemas/DomainScore' } }
+        recommendations: { type: array, items: { $ref: '#/components/schemas/Recommendation' } }
+        recommendationMs: { type: number }
+    Credential:
+      type: object
+      properties:
+        id: { type: string, pattern: '^IMR-[A-Z0-9]{4}-[A-Z0-9]{4}$' }
+        competency: { type: string }
+        holderName: { type: string }
+        hash: { type: string }
+        txHash: { type: [string, 'null'] }
+        block: { type: [integer, 'null'] }
+        status: { type: string, enum: [pending, valid, revoked] }
+        issuedAt: { type: string, format: date-time }
+    Verification:
+      type: object
+      properties:
+        outcome: { type: string, enum: [valid, revoked, mismatch, not_found] }
+        credential: { $ref: '#/components/schemas/Credential' }
+paths:
+  /auth/invites/check:
+    post:
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string }, email: { type: string } } } } } }
+      responses:
+        '200': { description: Valid, content: { application/json: { schema: { $ref: '#/components/schemas/Invite' } } } }
+        '409': { description: Invalid, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /auth/register:
+    post:
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, inviteCode, consent]
+              properties: { name: { type: string }, email: { type: string }, password: { type: string, minLength: 8 }, university: { type: string }, inviteCode: { type: string }, consent: { type: boolean } }
+      responses: { '201': { description: Created }, '409': { description: Invite or email conflict } }
+  /auth/login:
+    post:
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { email: { type: string }, password: { type: string } } } } } }
+      responses: { '200': { description: Session JWT }, '401': { description: Bad credentials } }
+  /auth/google:
+    post:
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { idToken: { type: string }, inviteCode: { type: string } } } } } }
+      responses: { '200': { description: Session }, '409': { description: NEEDS_INVITE } }
+  /auth/password/forgot:
+    post: { security: [], responses: { '204': { description: Code sent if the email exists } } }
+  /auth/password/reset:
+    post: { security: [], responses: { '204': { description: Password updated } } }
+  /me/preferences:
+    get: { responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Preferences' } } } } } }
+    put:
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Preferences' } } } }
+      responses: { '200': { description: Saved } }
+  /me/cookie-consent:
+    post:
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { analytics: { type: boolean }, preferences: { type: boolean }, policyVersion: { type: string }, anonymousId: { type: string } } } } } }
+      responses: { '201': { description: Stored } }
+  /assessment/attempts:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { kind: { type: string, enum: [pre, post] }, answers: { type: object, additionalProperties: { type: integer } }, durationMs: { type: integer } } }
+      responses: { '201': { description: Scored, content: { application/json: { schema: { $ref: '#/components/schemas/Attempt' } } } } }
+  /modules/{slug}:
+    get:
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: Module with lessons, activity and quiz (answers stripped) } }
+  /modules/{slug}/quiz:
+    post:
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: '{ score, passed }' } }
+  /modules/{slug}/credential:
+    post:
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses:
+        '201': { description: Issued (status may be pending until mined), content: { application/json: { schema: { $ref: '#/components/schemas/Credential' } } } }
+        '409': { description: COMPETENCY_NOT_MET }
+  /verify/{credentialId}:
+    get:
+      security: []
+      parameters:
+        - { name: credentialId, in: path, required: true, schema: { type: string } }
+        - { name: hash, in: query, schema: { type: string } }
+      responses: { '200': { description: Result, content: { application/json: { schema: { $ref: '#/components/schemas/Verification' } } } } }
+  /notifications:
+    get: { responses: { '200': { description: Audience-aware list with unread flags } } }
+  /notifications/read:
+    post:
+      requestBody: { content: { application/json: { schema: { type: object, properties: { ids: { type: array, items: { type: string } } } } } } }
+      responses: { '204': { description: Marked } }
+  /admin/invites:
+    post:
+      requestBody: { content: { application/json: { schema: { type: object, properties: { email: { type: string }, note: { type: string }, maxUses: { type: [integer, 'null'] }, days: { type: integer } } } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Invite' } } } } }
+  /admin/invites/{id}:
+    patch:
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { action: { type: string, enum: [revoke, extend] }, days: { type: integer } } } } } }
+      responses: { '200': { description: Updated } }
+  /admin/credentials/{id}:
+    patch:
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [valid, revoked] }, reason: { type: string } } } } } }
+      responses: { '200': { description: Updated on DB and chain } }
+  /admin/metrics:
+    get: { responses: { '200': { description: Knowledge gain, recommendation accuracy, credential health } } }
