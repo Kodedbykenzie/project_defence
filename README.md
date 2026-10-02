@@ -54,6 +54,19 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 
 ![Imari system topology](docs/architecture.svg)
 
+```mermaid
+flowchart LR
+    B[Browser<br/>React SPA · Vite · Tailwind] -->|HTTPS /v1 JSON| API[Backend<br/>Fastify · JWT · scoring]
+    B -->|eth_* JSON-RPC read| CHAIN[(Ethereum<br/>Hardhat :8545 / Sepolia)]
+    API -->|SQL| DB[(PostgreSQL<br/>Supabase · triggers · RLS)]
+    API -->|ethers tx| CHAIN
+    CHAIN --- C[ImariCredentialRegistry<br/>issue · revoke · verify]
+```
+
+![Mermaid rendering](docs/architecture-mermaid.png)
+
+> 🔍 **Interactive viewer** — open [`docs/architecture-viewer.html`](docs/architecture-viewer.html) in a browser for pan / zoom / reset / fit controls (svg-pan-zoom), plus built-in zoom icons on the diagram.
+
 <details><summary>ASCII fallback</summary>
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              BROWSER (SPA)                                  │
