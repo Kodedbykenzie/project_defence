@@ -367,7 +367,7 @@ async function loadCredential(id: string) {
 }
 
 /** Sepolia issue() via ethers — only called when chainMode === 'sepolia'. */
-async function anchorOnChain(id: string, contentHashHex: string): Promise<{ txHash: string; block: number }> {
+export async function anchorOnChain(id: string, contentHashHex: string): Promise<{ txHash: string; block: number }> {
   const { ethers } = await import('ethers');
   const { SEPOLIA_RPC_URL, ISSUER_PRIVATE_KEY, CREDENTIAL_CONTRACT_ADDRESS } = process.env;
   const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);

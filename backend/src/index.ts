@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { config, chainMode } from './config.js';
 import { closePool, query } from './db.js';
+import { startChainWatcher, startRetrySweeper } from './lib/watcher.js';
 
 async function main(): Promise<void> {
   const app = await buildApp();
@@ -22,6 +23,8 @@ async function main(): Promise<void> {
 
   await app.listen({ port: config.PORT, host: config.HOST });
   app.log.info({ chainMode }, 'credential anchoring mode');
+  await startChainWatcher().catch((err) => app.log.warn({ err }, 'chain watcher disabled'));
+  startRetrySweeper();
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');

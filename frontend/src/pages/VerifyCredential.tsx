@@ -21,7 +21,8 @@ import { Logo } from '../components/Logo';
 import { Spinner } from '../components/ui/Spinner';
 import { usePlatform } from '../contexts/PlatformContext';
 import { useAuth } from '../contexts/AuthContext';
-import { etherscanTx, shortHash, verifyCredential } from '../utils/credential';
+import { etherscanTx, shortHash } from '../utils/credential';
+import { verifyCredentialLive } from '../utils/verifyLive';
 import { formatDate, homeFor } from '../utils/format';
 import type { Credential, VerificationOutcome } from '../types/platform';
 
@@ -50,6 +51,7 @@ export function VerifyCredential() {
   const [showHash, setShowHash] = useState(false);
   const [step, setStep] = useState(-1);
   const [result, setResult] = useState<Result | null>(null);
+  const [source, setSource] = useState<'api' | 'chain' | 'local' | null>(null);
   const checking = step >= 0 && step < steps.length;
 
   const run = (targetId: string, presentedHash?: string) => {
@@ -57,10 +59,11 @@ export function VerifyCredential() {
     setResult(null);
     setStep(0);
     steps.forEach((_, i) => window.setTimeout(() => setStep(i + 1), (i + 1) * 350));
-    window.setTimeout(() => {
-      const r = verifyCredential(credentials, targetId, presentedHash);
+    window.setTimeout(async () => {
+      const r = await verifyCredentialLive(credentials, targetId, presentedHash);
       if (r.credential) recordVerification(r.credential.id);
-      setResult(r);
+      setResult({ outcome: r.outcome, credential: r.credential });
+      setSource(r.source);
     }, steps.length * 350 + 50);
   };
 
@@ -87,6 +90,7 @@ export function VerifyCredential() {
   };
 
   const o = result ? outcomes[result.outcome] : null;
+  const sourceLabel = source === 'api' ? 'API + Sepolia record' : source === 'chain' ? 'Direct contract read' : 'Local prototype';
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-canvas px-2 pb-[calc(56px+env(safe-area-inset-bottom))] pt-[max(8px,env(safe-area-inset-top))] sm:px-3 md:pb-3">
@@ -201,6 +205,7 @@ export function VerifyCredential() {
                     <o.icon className="h-5 w-5" />
                   </span>
                   <p className="min-w-0 truncate font-semibold">{o.title}</p>
+                  {source && <span className="ml-auto shrink-0 rounded-full bg-white/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">{sourceLabel}</span>}
                 </div>
 
                 {result.credential ?

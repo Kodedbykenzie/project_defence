@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { one, query, setActor, withTx } from '../db.js';
-import { conflict, notFound } from '../errors.js';
+import { AppError, conflict, notFound } from '../errors.js';
 import { requireRole } from '../auth-plugin.js';
 
 // ------------------------------------------------------------------ shapes
@@ -384,9 +384,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           signer,
         );
         const { idHash } = await import('../lib/credential.js');
-        const tx = status === 'revoked' ? await registry.revoke(idHash(target.id)) : await registry.reinstate(idHash(target.id));
-        await tx.wait();
+        try {
+          const tx = status === 'revoked' ? await registry.revoke(idHash(target.id)) : await registry.reinstate(idHash(target.id));
+          await tx.wait();
+        } catch (chainErr) {
+          // The chain may already be in the desired state (e.g. an earlier
+          // request anchored it but the DB write rolled back). Reconcile.
+          const reader: any = new ethers.Contract(
+            CREDENTIAL_CONTRACT_ADDRESS!,
+            ['function get(bytes32) view returns (bytes32,uint64,uint64,uint8)'],
+            signer,
+          );
+          const rec = await reader.get(idHash(target.id));
+          const onChainStatus = Number(rec[3]) === 2 ? 'revoked' : Number(rec[3]) === 1 ? 'valid' : 'none';
+          if (onChainStatus !== status) {
+            req.log.error({ err: chainErr, id }, 'chain status change failed');
+            throw conflict('CHAIN_ERROR', 'Could not update the on-chain status.');
+          }
+          req.log.warn({ id, status }, 'chain already in desired state — reconciling DB');
+        }
       } catch (err) {
+        if (err instanceof AppError) throw err;
         req.log.error({ err, id }, 'chain status change failed');
         throw conflict('CHAIN_ERROR', 'Could not update the on-chain status.');
       }

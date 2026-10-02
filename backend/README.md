@@ -35,26 +35,49 @@ APP_ORIGIN=https://imari.app
 
 ## Endpoints (see `openapi.yaml`)
 
-| Method & path | Role | Notes |
+All API routes are mounted under the **`/v1`** prefix (e.g. `GET /v1/modules`). Auth is `Authorization: Bearer <accessToken>` unless marked public.
+
+| Method & path | Role | Description |
 |---|---|---|
-| `POST /auth/invites/check` | public | `{ code, email? }` → invite status |
-| `POST /auth/register` | public | Requires a valid invite; inserts `users` + `invite_redemptions` in one transaction |
-| `POST /auth/login` · `POST /auth/google` | public | Google sign-up also requires an invite |
-| `POST /auth/password/forgot` · `/verify` · `/reset` | public | 6-digit code, 15 min, 5 attempts |
-| `GET/PUT /me/preferences` | self | language, text size, alerts, onboarding answers |
-| `POST /me/cookie-consent` | any | Stores a `cookie_consents` row |
-| `GET /assessment/diagnostic` | student | 15 active items, answers stripped |
-| `POST /assessment/attempts` | student | Scores server-side, writes `domain_scores` + `recommendations` |
-| `GET /modules` · `GET /modules/:slug` | student | Published only; slug routing |
-| `POST /modules/:slug/lessons/:i/complete` · `/activity` · `/quiz` | student | Updates `module_progress` / `quiz_attempts` |
-| `POST /modules/:slug/credential` | student | Issues when eligible (DB trigger enforces) |
-| `GET /verify/:credentialId?hash=` | public | Reads DB + contract; logs `credential_verifications` |
-| `GET /notifications` · `POST /notifications/read` | self | Audience-aware, with `unread` flag |
-| `POST /admin/invites` · `PATCH /admin/invites/:id` | admin | create / revoke / extend |
-| `PUT /admin/modules/:slug` · `POST /admin/modules` | admin | Course editor save |
-| `PUT /admin/settings/threshold` | admin | Recommendation threshold |
-| `PATCH /admin/credentials/:id` | admin | revoke / reinstate (also calls contract) |
-| `GET /admin/metrics` | admin | Reads evaluation views |
+| `GET /health` | public | Liveness probe — `{ status: "ok", uptime }` |
+| `GET /ready` | public | Readiness probe — runs `select 1` against Postgres (503 if degraded) |
+| `POST /v1/auth/invites/check` | public | Validate an invite code before registration; `{ code, email? }` → invite status |
+| `POST /v1/auth/register` | public | Create account; requires valid invite. Inserts `users` + `invite_redemptions` atomically |
+| `POST /v1/auth/login` · `POST /v1/auth/google` | public | Password login / Google OAuth sign-in (Google sign-up also requires an invite) |
+| `POST /v1/auth/password/forgot` · `/verify` · `/reset` | public | 6-digit reset code flow — 15 min expiry, max 5 attempts |
+| `GET/PUT /v1/me/preferences` | self | Read/update language, text size, alert prefs, onboarding answers |
+| `POST /v1/me/cookie-consent` | self | Record the user's cookie-consent choice |
+| `GET /v1/assessment/diagnostic` | student | List active diagnostic items (answers stripped server-side) |
+| `POST /v1/assessment/attempts` | student | Submit attempt; scored server-side, writes `domain_scores` + `recommendations` |
+| `GET /v1/assessment/attempts` | student | History of the caller's previous attempts |
+| `GET /v1/modules` · `GET /v1/modules/:slug` | student | Published modules only; slug-based routing |
+| `POST /v1/modules/:slug/lessons/:index/complete` | student | Mark a lesson complete; advances `module_progress` |
+| `POST /v1/modules/:slug/activity` · `/quiz` | student | Record activity / quiz result in `module_progress` / `quiz_attempts` |
+| `POST /v1/modules/:slug/credential` | student | Issue credential when competency criteria met (DB trigger enforces); anchors hash on-chain |
+| `POST /v1/modules/:slug/feedback` | student | Rate a module (star rating after completion) |
+| `GET /v1/verify/:credentialId?hash=` | public | Verify a credential against DB + contract; logs to `credential_verifications` |
+| `GET /v1/notifications` · `POST /v1/notifications/read` | self | Audience-aware notifications with `unread` flag |
+| `GET /v1/notifications/unread-count` | self | Badge counter for the UI |
+| `GET/POST /v1/admin/invites` · `PATCH /v1/admin/invites/:id` | admin | List / create / revoke / extend invites |
+| `GET /v1/admin/students` | admin | Roster with progress summary |
+| `POST /v1/admin/modules` · `PUT /v1/admin/modules/:slug` | admin | Course editor — create or save a module |
+| `PUT /v1/admin/settings/threshold` | admin | Set the recommendation weak-domain threshold (default 60) |
+| `GET /v1/admin/settings` | admin | Current platform settings |
+| `GET /v1/admin/credentials` · `PATCH /v1/admin/credentials/:id` | admin | List credentials; revoke / reinstate (DB update + on-chain status change) |
+| `GET /v1/admin/metrics` | admin | Evaluation views (accuracy of recommendations) |
+| `GET /v1/admin/events` | admin | Audit/event log stream |
+
+### Example
+
+```bash
+# Verify a credential (public)
+curl "http://localhost:4000/v1/verify/IMR-XXXX-XXXX?hash=0x…"
+
+# Issue a credential (student, after completing module requirements)
+curl -X POST http://localhost:4000/v1/modules/budgeting-basics/credential \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"learnerId":"…","learnerName":"…","moduleId":"…","competency":"Budgeting"}'
+```
 
 ## Recommendation rule (must match the client)
 

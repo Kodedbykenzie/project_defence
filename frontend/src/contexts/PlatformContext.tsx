@@ -195,7 +195,7 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         let credential: Credential;
         if (API_CONFIGURED) {
           const slug = module.slug ?? moduleId;
-          const res = await fetch(`${API_URL}/modules/${slug}/credential`, {
+          const res = await fetch(`${API_URL}/v1/modules/${slug}/credential`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ learnerId, learnerName: learner.name, moduleId, competency: module.competency }),
           });
@@ -218,7 +218,7 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
       rateModule: (learnerId, moduleId, rating) => updateLearner(learnerId, (l) => ({ ...l, feedback: { ...l.feedback, [moduleId]: rating } })),
       setCredentialStatus: (id, status) => {
         if (API_CONFIGURED) {
-          fetch(`${API_URL}/admin/credentials/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }).catch(() => {});
+          fetch(`${API_URL}/v1/admin/credentials/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }).catch(() => {});
         }
         setState((prev) => {
           const c = prev.credentials.find((x) => x.id === id);

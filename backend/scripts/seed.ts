@@ -205,12 +205,14 @@ async function seedAttemptsAndProgress(
 
     if (!skipAttempts) {
       for (const a of l.attempts) {
+        const completedAtDate = new Date(a.completedAt);
+        const startedAt = new Date(completedAtDate.getTime() - a.durationMs);
         const att = await query<{ id: string }>(
           `insert into assessment_attempts
              (user_id, kind, total_score, threshold_used, duration_ms, recommendation_ms, started_at, completed_at)
-           values ($1, $2, $3, 60, $4, $5, $6 - ($4 || ' milliseconds')::interval, $6)
+           values ($1, $2, $3, $4, $5, $6, $7, $8)
            returning id`,
-          [userId, a.kind, a.total, a.durationMs, a.recommendationMs, new Date(a.completedAt)],
+          [userId, a.kind, a.total, 60, a.durationMs, a.recommendationMs, startedAt, completedAtDate],
         );
         const attemptId = att.rows[0]!.id;
 
