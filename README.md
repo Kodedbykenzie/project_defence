@@ -41,6 +41,7 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 | `blockchain/contracts/ImariCredentialRegistry.sol` | `issue` · `revoke` · `reinstate` · `verify` · `get` · `setIssuer` |
 | `blockchain/test/ImariCredentialRegistry.test.ts` | 8-test Hardhat suite (`npm test`) |
 | `blockchain/scripts/deploy.ts` | Deployment script (localhost + Sepolia) |
+| `blockchain/scripts/visualize.ts` | Dumps the local chain's tx graph + Graphviz DOT output |
 | `blockchain/hardhat.config.ts` | Networks, Etherscan, TypeScript toolbox config |
 | `docs/README.md` | Docs index |
 | `docs/integration-guide.md` | End-to-end wiring of the four subsystems |

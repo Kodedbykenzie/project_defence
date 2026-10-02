@@ -89,6 +89,80 @@ React + TS client ──► Backend API ──► PostgreSQL (Supabase)   ← al
 | ![Credentials](screenshots/credentials.png) | ![Admin modules](screenshots/admin-modules.png) |
 | ![Public verify](screenshots/verify.png) | |
 
+## 5.0 Data visualization, security & schematic design (defence requirements)
+
+### 5.1 Data visualization
+
+The local Hardhat chain can be visualised by dumping its transaction graph. Run:
+
+```bash
+cd blockchain && npx hardhat run scripts/visualize.ts --network localhost
+```
+
+This prints every block/transaction and emits a **Graphviz DOT** description you can paste into [GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/):
+
+```
+digraph tx {
+  "0xf39F…2266" -> "contract-creation" [label="blk 1"];
+  "0xf39F…2266" -> "0x5FbD…0aa3"       [label="issue, blk 2"];
+  "0xf39F…2266" -> "0x5FbD…0aa3"       [label="revoke, blk 3"];
+}
+```
+
+The contract's events (`Issued`, `Revoked`, `Reinstated`) can also be plotted as a timeline — our backend watcher (`backend log: [watcher] subscribed to registry events`) already consumes them.
+
+**Consensus algorithms:** the local dev node auto-mines per transaction (effectively PoA on a single node); production runs on **Ethereum Sepolia, which uses Proof of Stake** with ~12-second slots.
+
+### 5.2 Security measures
+
+| Area | Measure | Evidence |
+|---|---|---|
+| On-chain privacy | Only `keccak256(credentialId)` + `contentHash` + status stored — no personal data | `ImariCredentialRegistry.sol` |
+| Access control | `onlyOwner` / `onlyIssuer` modifiers; `setIssuer` rotates the hot wallet | contract |
+| Pause switch | `pause()`/`unpause()` blocks issuance/revocation in an incident | contract + 8-test suite |
+| Tamper evidence | `verify()` recomputes the presented hash against the stored one | contract |
+| API auth | HS256 JWT access + refresh rotation | `backend/src/auth-plugin.ts` |
+| Rate limiting | Global limit + stricter auth limits | `backend/src/app.ts` |
+| HTTP security | helmet headers; CORS restricted to `APP_ORIGIN` | `backend/src/app.ts` |
+| DB security | Parameterised queries, RLS policies, eligibility triggers | `database/migrations/0003,0004` |
+| Key hygiene | `.env` untracked; separate deployer vs issuer keys; testnet only | `.gitignore`, `.env.example` |
+
+### 5.3 Schematic design (system components & interactions)
+
+*("PCB" is a hardware concept; for this software project we present the equivalent: the component schematic and its interaction matrix.)*
+
+| From | To | Interface | Purpose |
+|---|---|---|---|
+| React client | Backend API | HTTPS JSON `/v1/*` | auth, modules, progress, credentials |
+| React client | Ethereum | JSON-RPC (read-only) | fallback `verify()` from the browser |
+| Backend | PostgreSQL | `pg` SQL client | users, progress, credentials persistence |
+| Backend | Ethereum | ethers.js transactions | `issue` / `revoke` / `reinstate` |
+| Contract | Watchers | event logs | backend event subscription |
+
+**Credential lifecycle sequence:**
+
+```mermaid
+sequenceDiagram
+  participant S as Student
+  participant F as Frontend
+  participant B as Backend
+  participant DB as Postgres
+  participant C as Contract
+  S->>F: completes module/quiz
+  F->>B: POST progress
+  B->>DB: module_progress update
+  DB-->>B: criteria met
+  B->>C: issue(keccak(id), contentHash)
+  C-->>B: txHash
+  B-->>F: credential + txHash
+  F-->>S: Credential issued
+  S->>F: opens /verify
+  F->>B: GET /v1/verify/:id
+  B->>DB: record lookup
+  B->>C: verify(idHash, hash)
+  C-->>B: (status, matches)
+```
+
 ## 5. Deployment plan
 
 | Layer | Target | Steps |
