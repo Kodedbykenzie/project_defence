@@ -7,8 +7,6 @@
 
 > Suggested CI: `.github/workflows/ci.yml` running `blockchain` tests (`npm test`), backend tests (`npm test`), and frontend typecheck/lint on every push.
 
-Monorepo for the Imari capstone project: *Design, development and evaluation of a personalised financial literacy learning platform* — Precious Chibundu Mozia, supervised by Thadee Gatera. Pilot cohort: university students in Kigali (African Leadership University).
-
 Imari assesses each student's financial-literacy level, recommends modules for their weak competency domains, tracks progress, and issues **blockchain-verifiable micro-credentials** once competency criteria are met.
 
 ---
@@ -52,8 +50,6 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 
 ## 2. Architecture & system topology
 
-![Imari system topology](docs/architecture.svg)
-
 ```mermaid
 flowchart LR
     B[Browser<br/>React SPA · Vite · Tailwind] -->|HTTPS /v1 JSON| API[Backend<br/>Fastify · JWT · scoring]
@@ -63,11 +59,11 @@ flowchart LR
     CHAIN --- C[ImariCredentialRegistry<br/>issue · revoke · verify]
 ```
 
-![Mermaid rendering](docs/architecture-mermaid.png)
-
 > 🔍 **Interactive viewer** — open [`docs/architecture-viewer.html`](docs/architecture-viewer.html) in a browser for pan / zoom / reset / fit controls (svg-pan-zoom), plus built-in zoom icons on the diagram.
 
 <details><summary>ASCII fallback</summary>
+
+```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              BROWSER (SPA)                                  │
 │  frontend/ — React 18 + TS + Vite + Tailwind                                │
