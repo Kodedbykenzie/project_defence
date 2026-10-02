@@ -19,5 +19,7 @@ create table auth_sessions (
   revoked_reason     text                             -- 'rotated' | 'logout' | 'reuse_detected'
 );
 
+-- Partial index with IMMUTABLE predicate only (now() is volatile, so the
+-- expiry check stays in the query, not the index).
 create index auth_sessions_user_active on auth_sessions (user_id)
-  where revoked_at is null and expires_at > now();
+  where revoked_at is null;

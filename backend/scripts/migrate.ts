@@ -40,6 +40,23 @@ async function main(): Promise<void> {
       .filter((f) => f.endsWith('.sql'))
       .sort();
 
+    // Adopt a schema that was applied outside this tracker (e.g. psql):
+    // if imari tables already exist but nothing is tracked, mark pre-existing
+    // migrations as applied — then only genuinely new files run.
+    const tracked = await client.query(`select count(*)::int as n from schema_migrations`);
+    const hasSchema = await client.query(
+      `select exists(select 1 from information_schema.tables where table_schema = 'imari' and table_name = 'users') as yes`,
+    );
+    if ((tracked.rows[0]?.n ?? 0) === 0 && hasSchema.rows[0]?.yes) {
+      for (const file of files) {
+        // Only files that pre-date this adoption are marked; run the rest.
+        if (file < '0005_') {
+          await client.query(`insert into schema_migrations (filename) values ($1)`, [file]);
+          console.log(`  ↦ ${file} (adopted existing schema)`);
+        }
+      }
+    }
+
     for (const file of files) {
       const done = await client.query(`select 1 from schema_migrations where filename = $1`, [file]);
       if (done.rowCount) {
