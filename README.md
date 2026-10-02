@@ -1,44 +1,170 @@
 # Imari — personalised financial literacy learning platform
 
-Monorepo for the Imari capstone project: *Design, development and evaluation of a personalised financial literacy learning platform* — Precious Chibundu Mozia, supervised by Thadee Gatera. Pilot: university students in Kigali (ALU).
+Monorepo for the Imari capstone project: *Design, development and evaluation of a personalised financial literacy learning platform* — Precious Chibundu Mozia, supervised by Thadee Gatera. Pilot cohort: university students in Kigali (African Leadership University).
 
-## Repository layout
+Imari assesses each student's financial-literacy level, recommends modules for their weak competency domains, tracks progress, and issues **blockchain-verifiable micro-credentials** once competency criteria are met.
 
-| Folder | What's inside |
+---
+
+## 1. Repository layout
+
+| Path | Description |
 |---|---|
-| `frontend/` | React + TypeScript + Vite + Tailwind web client (student & admin), prototype state in `src/contexts/` |
-| `backend/` | API contract and wiring guide (TypeScript service between client, Postgres and the credential contract) |
-| `database/` | Postgres/Supabase schema, indexes, triggers, RLS policies and seed data |
-| `blockchain/` | Solidity micro-credential registry for Ethereum Sepolia |
-| `docs/` | Project overview and end-to-end integration guide |
+| `README.md` | This file — top-level guide (architecture, setup, file index) |
+| `proposal.md` | The original project proposal document |
+| `frontend/` | React 18 + TypeScript + Vite + Tailwind web client (student & admin portals) |
+| `frontend/src/contexts/` | Client state (auth, platform, preferences) |
+| `frontend/src/config/chain.ts` | Chain/API endpoints read from `VITE_*` env vars |
+| `frontend/src/utils/verifyLive.ts` | Credential verification: backend API → direct chain read → local fallback |
+| `frontend/scripts/screenshots.mjs` | Playwright script that regenerates `docs/screenshots/` |
+| `frontend/public/` | Static assets |
+| `backend/` | Fastify + TypeScript API service (auth, scoring, modules, credentials, admin) |
+| `backend/src/app.ts` | App factory: security middleware + route registration under `/v1` |
+| `backend/src/routes/` | Route modules: `auth`, `me`, `assessment`, `modules`, `credentials`, `notifications`, `admin` |
+| `backend/src/lib/` | Shared helpers (DB, chain client, hashing, tokens) |
+| `backend/openapi.yaml` | Full OpenAPI 3 contract for every endpoint |
+| `backend/scripts/` | `migrate.ts` / `seed.ts` DB utilities |
+| `backend/test/` | Node test-runner unit/integration tests |
+| `database/` | Postgres schema & reference data |
+| `database/migrations/0001_schema.sql` | Tables (users, invites, modules, progress, credentials, …) |
+| `database/migrations/0002_indexes.sql` | Indexes |
+| `database/migrations/0003_triggers.sql` | Competency/credential eligibility triggers |
+| `database/migrations/0004_rls_and_views.sql` | Row-level security policies + evaluation views |
+| `database/migrations/0005_auth_sessions.sql` | Refresh-token session tables |
+| `database/seed/0001_reference_data.sql` | Reference rows (domains, invite codes, demo content) |
+| `blockchain/` | Hardhat project: Solidity registry + local node + Sepolia deploy |
+| `blockchain/contracts/ImariCredentialRegistry.sol` | `issue` · `revoke` · `reinstate` · `verify` · `get` · `setIssuer` |
+| `blockchain/test/ImariCredentialRegistry.test.ts` | 8-test Hardhat suite (`npm test`) |
+| `blockchain/scripts/deploy.ts` | Deployment script (localhost + Sepolia) |
+| `blockchain/hardhat.config.ts` | Networks, Etherscan, TypeScript toolbox config |
+| `docs/README.md` | Docs index |
+| `docs/integration-guide.md` | End-to-end wiring of the four subsystems |
+| `docs/blockchain-proposal-review.md` | Proposal-vs-implementation review notes |
+| `docs/project-documentation.md` | Defence documentation (description, setup, designs, deployment plan) |
+| `docs/screenshots/` | Application screenshots embedded in the docs |
 
-## Quickstart (frontend)
+## 2. Architecture & system topology
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              BROWSER (SPA)                                  │
+│  frontend/ — React 18 + TS + Vite + Tailwind                                │
+│  • Student & admin portals                                                 │
+│  • VITE_API_URL → backend   VITE_RPC_URL → chain (direct reads)             │
+└───────────────┬───────────────────────────────────┬─────────────────────────┘
+                │ HTTPS/JSON                        │ eth_* JSON-RPC (read-only)
+                ▼                                   ▼
+┌───────────────────────────────┐    ┌───────────────────────────────────────┐
+│   backend/ (Fastify, :4000)   │    │  Ethereum node RPC                    │
+│   • JWT auth (HS256)          │    │  • dev: Hardhat node :8545 (chainId   │
+│   • scoring / recommendations │    │    31337)                             │
+│   • credential issuing        │───►│  • prod: Sepolia (chainId 11155111)   │
+│     (ethers → contract)       │ tx │                                       │
+│   • events watcher            │    │  ┌─────────────────────────────────┐  │
+└───────┬───────────────────────┘    │  │ ImariCredentialRegistry (Sol)  │  │
+        │ SQL (pg)                   │  │  stores keccak(id), keccak     │  │
+        ▼                            │  │  (contentHash), status         │  │
+┌───────────────────────────────┐    │  └─────────────────────────────────┘  │
+│ PostgreSQL (local / Supabase) │◄───┘ only idHash + contentHash + status    │
+│ normalized app data, triggers │     leave the personal-data boundary       │
+└───────────────────────────────┘
+```
+
+**Topology notes**
+
+* The **backend owns all secrets** (JWT secret, DB, issuer key). The frontend never holds private keys.
+* The **chain holds the proof** — only `keccak(credentialId)`, `contentHash` and status are written on-chain; names, scores and answers stay in Postgres.
+* Public verification works two ways: `GET /v1/verify/:id` (backend reads DB + contract) or direct browser read via `ethers` from `blockchain/` artifact.
+
+## 3. Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | 20 LTS recommended (works on v23 with warnings) |
+| npm | 10+ |
+| PostgreSQL | 15+ (local Homebrew install or Supabase) |
+| Git | any recent |
+
+## 4. Setup (reproducible, step by step)
 
 ```bash
-npm install        # installs the frontend workspace
-npm run dev        # vite dev server
-npm run build      # production build
-npm run lint       # eslint
+# 0. Clone
+git clone https://github.com/Kodedbykenzie/project_defence.git
+cd project_defence
+
+# 1. Install dependencies per package
+cd frontend   && npm install && cd ..
+cd backend    && npm install && cd ..
+cd blockchain && npm install && cd ..
+
+# 2. Database (local Homebrew Postgres example)
+createdb imari
+psql -d imari -f database/migrations/0001_schema.sql
+psql -d imari -f database/migrations/0002_indexes.sql
+psql -d imari -f database/migrations/0003_triggers.sql
+psql -d imari -f database/migrations/0004_rls_and_views.sql
+psql -d imari -f database/migrations/0005_auth_sessions.sql
+psql -d imari -f database/seed/0001_reference_data.sql
+# …or: cd backend && npm run db:setup
+
+# 3. Configure environment
+cp backend/.env.example    backend/.env        # fill DATABASE_URL, JWT_SECRET, …
+cp blockchain/.env.example blockchain/.env      # only needed for Sepolia
+cp frontend/.env.example   frontend/.env        # VITE_API_URL=http://localhost:4000
 ```
 
-## Full stack
+## 5. Run the full stack (4 terminals)
 
-Each package ships its own guide — start at [`docs/README.md`](docs/README.md), then follow the end-to-end [`docs/integration-guide.md`](docs/integration-guide.md):
+```bash
+# T1 — local blockchain
+cd blockchain && npm run node
 
-1. **Database** — apply `database/migrations/*.sql` in order, then `database/seed/0001_reference_data.sql` (see `database/README.md`).
-2. **Blockchain** — deploy `blockchain/contracts/ImariCredentialRegistry.sol` to Sepolia (see `blockchain/README.md`).
-3. **Backend** — implement the endpoints in `backend/openapi.yaml` (see `backend/README.md`).
-4. **Frontend** — swap localStorage contexts for API calls per `docs/integration-guide.md`.
+# T2 — deploy the registry (prints the contract address)
+cd blockchain && npm run deploy:local
+#    → copy "ImariCredentialRegistry: 0x…" into backend/.env
+#      CREDENTIAL_CONTRACT_ADDRESS=0x…  and frontend/.env VITE_CONTRACT_ADDRESS
 
-## Architecture
+# T3 — backend API
+cd backend && npm run dev          # http://localhost:4000, GET /health → {"status":"ok"}
 
+# T4 — frontend
+cd frontend && npm run dev         # http://localhost:5173
 ```
- React + TS client ──► Backend API ──► PostgreSQL (Supabase)   ← all personal & learning data
-        │                   │
-        │                   └──► Credential service ──► Sepolia: ImariCredentialRegistry
-        └──► /verify (public) ─────────────────────────┘         ← id hash + content hash + status only
+
+Demo accounts: student `aline@alustudent.com` · admin `admin@imari.rw` · password `demo1234` · invite `ALU-PILOT`.
+
+## 6. Tests & quality
+
+| Layer | Command | What it covers |
+|---|---|---|
+| Smart contract | `cd blockchain && npm test` | 8 Hardhat tests: issue, revoke, reinstate, verify-tamper, unknown-id, pause, ownership |
+| Backend | `cd backend && npm test` | Node test-runner suites for scoring/auth/credentials |
+| Frontend | `cd frontend && npm run typecheck` / `npm run lint` | `tsc --noEmit` + eslint |
+| E2E (manual) | deploy:local then issue/verify/revoke via UI | end-to-end credential lifecycle |
+
+Regenerate the screenshots in `docs/screenshots/` with:
+
+```bash
+cd frontend && node scripts/screenshots.mjs
 ```
 
-## Demo
+## 7. Package scripts cheat-sheet
 
-Student `aline@alustudent.com` · Admin `admin@imari.rw` · password `demo1234` · invite `ALU-PILOT`.
+```bash
+# frontend/
+npm run dev / build / lint / typecheck / preview
+
+# backend/
+npm run dev / build / start / test / db:migrate / db:seed / db:setup
+
+# blockchain/
+npm run compile / test / node / deploy:local / deploy:sepolia
+```
+
+## 8. Further reading
+
+- End-to-end integration: [`docs/integration-guide.md`](docs/integration-guide.md)
+- Docs index: [`docs/README.md`](docs/README.md)
+- Defence documentation (description, designs, deployment plan): [`docs/project-documentation.md`](docs/project-documentation.md)
+- Proposal review: [`docs/blockchain-proposal-review.md`](docs/blockchain-proposal-review.md)
+- Original proposal: [`proposal.md`](proposal.md)
