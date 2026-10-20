@@ -57,6 +57,16 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
+  // --- error handling -------------------------------------------------------
+  // NOTE: must be registered BEFORE the route plugin below. Fastify captures
+  // the parent's error handler when a child context is created, so setting it
+  // afterwards leaves /v1 routes on Fastify's default handler (every Zod
+  // failure would surface as 500 instead of 422).
+  app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler((req, reply) => {
+    reply.code(404).send({ code: 'NOT_FOUND', message: `No route for ${req.method} ${req.url}` });
+  });
+
   // --- api -----------------------------------------------------------------
   await app.register(
     async (api) => {
@@ -70,11 +80,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
     { prefix: '/v1' },
   );
-
-  app.setErrorHandler(errorHandler);
-  app.setNotFoundHandler((req, reply) => {
-    reply.code(404).send({ code: 'NOT_FOUND', message: `No route for ${req.method} ${req.url}` });
-  });
 
   if (!isProd) {
     app.log.warn('Running in development mode — do not expose publicly.');

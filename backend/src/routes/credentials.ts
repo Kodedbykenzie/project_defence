@@ -92,8 +92,12 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /verify — search by holder name or partial id (landing page lookup)
   app.get('/verify', async (req) => {
-    const { q } = z.object({ q: z.string().min(2).max(80).optional() }).parse(req.query);
-    if (!q) return { results: [] };
+    // An empty ?q= means "no search", not a validation failure.
+    const { q } = z
+      .object({ q: z.string().max(80).optional() })
+      .parse(req.query);
+    const term = q?.trim();
+    if (!term || term.length < 2) return { results: [] };
     const { rows } = await query<{
       id: string;
       competency: string;
@@ -105,7 +109,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
          from credentials
         where status <> 'pending' and (id ilike $1 or holder_name ilike $1)
         order by issued_at desc limit 10`,
-      [`%${q}%`],
+      [`%${term}%`],
     );
     return {
       results: rows.map((r) => ({
