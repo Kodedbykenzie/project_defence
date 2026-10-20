@@ -218,7 +218,23 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
       rateModule: (learnerId, moduleId, rating) => updateLearner(learnerId, (l) => ({ ...l, feedback: { ...l.feedback, [moduleId]: rating } })),
       setCredentialStatus: (id, status) => {
         if (API_CONFIGURED) {
-          fetch(`${API_URL}/v1/admin/credentials/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }).catch(() => {});
+          // The chain is authoritative: the server flips on-chain status first and
+          // only then updates Postgres. Surface a failure instead of silently
+          // pretending the revocation succeeded.
+          void fetch(`${API_URL}/v1/admin/credentials/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({}) as { error?: string });
+                notify([{ recipient: 'admins', kind: 'system', title: 'Status update rejected', body: body.error ?? `HTTP ${res.status}`, link: '/admin/credentials' }]);
+              }
+            })
+            .catch((err: Error) => {
+              notify([{ recipient: 'admins', kind: 'system', title: 'Status update failed', body: err.message, link: '/admin/credentials' }]);
+            });
         }
         setState((prev) => {
           const c = prev.credentials.find((x) => x.id === id);
