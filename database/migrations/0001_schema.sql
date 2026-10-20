@@ -310,7 +310,7 @@ create table credentials (
   competency      text not null,
   holder_name     text not null,                             -- snapshot at issuance
   hash            char(66) not null unique check (hash ~ '^0x[0-9a-f]{64}$'),
-  chain_id        integer not null default 11155111,         -- Ethereum Sepolia
+  chain_id        integer not null default 0,                 -- 0 = not anchored; set to the live chain id on issue
   contract_address char(42),
   tx_hash         char(66) check (tx_hash ~ '^0x[0-9a-f]{64}$'),
   block_number    bigint,

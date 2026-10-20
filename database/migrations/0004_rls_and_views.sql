@@ -4,7 +4,8 @@
 -- =====================================================================
 set search_path = imari, public;
 
-create or replace function is_admin() returns boolean language sql stable security definer as $$
+create or replace function is_admin() returns boolean language sql stable security definer
+set search_path = imari, public as $$
   select exists (select 1 from imari.users where id = auth.uid() and role = 'admin' and deleted_at is null)
 $$;
 

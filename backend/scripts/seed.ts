@@ -371,8 +371,8 @@ async function seedCredentials(
 
     await query(
       `insert into credentials
-         (id, user_id, module_id, competency, holder_name, hash, status, issued_at, confirmed_at, revoked_at, revoked_reason, tx_hash, block_number)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         (id, user_id, module_id, competency, holder_name, hash, status, issued_at, confirmed_at, revoked_at, revoked_reason, tx_hash, block_number, chain_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        on conflict (id) do nothing`,
       [
         c.id, uid, moduleId, c.competency, c.learnerName, hash,
@@ -382,6 +382,10 @@ async function seedCredentials(
         c.status === 'revoked' ? 'Demo revocation' : null,
         `0x${contentHash({ id: `sepolia-tx:${c.id}`, learnerId: uid, moduleId, competency: c.competency, issuedAt: issuedAt.toISOString() }).slice(2)}`,
         6_800_000 + (parseInt(hash.slice(2, 8), 16) % 90_000),
+        // Seeded rows are simulated anchors, so they belong to no real
+        // network. chain_id 0 marks "not on a chain" — claiming Sepolia for a
+        // credential that was never broadcast would be a false record.
+        0,
       ],
     );
   }

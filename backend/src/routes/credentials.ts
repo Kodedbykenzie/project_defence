@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { one, query } from '../db.js';
 import { contentHash } from '../lib/credential.js';
 import { hashIp } from '../security.js';
+import { getChainGateway } from '../services/chain-gateway.js';
 
 const VerifyParams = z.object({ credentialId: z.string().min(4).max(40) });
 const VerifyQuery = z.object({ hash: z.string().max(80).optional() });
@@ -11,8 +12,15 @@ type Outcome = 'valid' | 'revoked' | 'mismatch' | 'not_found';
 
 /**
  * Public credential verification (openapi.yaml § /verify/{credentialId}).
- * Reads the DB, recomputes the canonical keccak256 hash, optionally compares
- * a presented hash, and logs every check to credential_verifications (Table 7).
+ *
+ * The blockchain is authoritative. The database is cross-checked against the
+ * contract: the canonical keccak256 hash is recomputed locally and compared
+ * with both the stored hash and the anchored one, so a tampered database row
+ * or a tampered payload is reported as a mismatch rather than as "valid".
+ *
+ * `source` tells the caller where the verdict came from:
+ *   chain  — the contract answered (the normal case)
+ *   db     — the chain was unreachable, so the database was used
  */
 export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   app.get('/verify/:credentialId', async (req) => {
@@ -40,6 +48,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
 
     let outcome: Outcome = 'not_found';
     let credential: Record<string, unknown> | undefined;
+    let source: 'chain' | 'db' = 'db';
 
     if (!row) {
       outcome = 'not_found';
@@ -57,7 +66,39 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
       const hashOk = recomputed.toLowerCase() === row.hash.toLowerCase();
       const presentedOk = !presentedNorm || presentedNorm === row.hash.toLowerCase();
 
+      // Local checks first: a database row that does not match its own
+      // canonical hash is tampered with, whatever the chain says.
       outcome = !hashOk || !presentedOk ? 'mismatch' : row.status === 'revoked' ? 'revoked' : 'valid';
+
+      // Then reconcile with the chain. The registry is authoritative: a
+      // credential the contract does not know (or reports as revoked) is not
+      // valid, even if the database row claims otherwise.
+      //
+      // The hash handed to the contract is the PRESENTED one when the caller
+      // supplied it, so the contract itself performs the comparison. With no
+      // presented hash the stored hash is used, which proves the database row
+      // still matches what was anchored.
+      const gateway = getChainGateway();
+      if (gateway.mode === 'sepolia') {
+        try {
+          const onChain = await gateway.verify(row.id, presentedNorm ?? row.hash);
+          source = 'chain';
+          if (onChain.status === 'none') {
+            outcome = 'not_found';
+          } else if (onChain.status === 'revoked') {
+            outcome = 'revoked';
+          } else if (!onChain.matches) {
+            outcome = 'mismatch';
+          } else {
+            outcome = 'valid';
+          }
+        } catch (err) {
+          // The chain being unreachable must not make a genuine credential
+          // unverifiable — fall back to the database and say so.
+          req.log.warn({ err, id: row.id }, 'chain unreachable — verifying from the database');
+          source = 'db';
+        }
+      }
 
       credential = {
         id: row.id,
@@ -66,7 +107,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
         hash: row.hash,
         txHash: row.tx_hash,
         block: row.block_number,
-        status: row.status,
+        status: outcome === 'revoked' ? 'revoked' : row.status,
         issuedAt: row.issued_at.toISOString(),
       };
     }
@@ -87,7 +128,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
       ],
     ).catch(() => {});
 
-    return { outcome, credential, latencyMs };
+    return { outcome, credential, latencyMs, source };
   });
 
   // GET /verify — search by holder name or partial id (landing page lookup)

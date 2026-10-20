@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { query, one, withTx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import { requireAuth, requireRole } from '../auth-plugin.js';
-import { idHash, contentHash, newCredentialId, simulatedBlock, simulatedTxHash } from '../lib/credential.js';
-import { chainMode } from '../config.js';
+import { idHash, contentHash, newCredentialId } from '../lib/credential.js';
+import { getChainGateway } from '../services/chain-gateway.js';
 
 // ------------------------------------------------------------------ shapes
 
@@ -275,28 +275,27 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
       return rows[0]!.id;
     });
 
-    // Anchor: real Sepolia tx when configured, deterministic simulation otherwise.
+    // Anchor through the chain gateway: a real transaction when a node is
+    // configured, a deterministic stand-in otherwise. A write failure leaves
+    // status='pending' so the retry sweeper can pick it up later.
     let txHash: string | null = null;
     let block: number | null = null;
+    const gateway = getChainGateway();
     try {
-      if (chainMode === 'sepolia') {
-        const anchored = await anchorOnChain(id, hash);
-        txHash = anchored.txHash;
-        block = anchored.block;
-      } else {
-        txHash = simulatedTxHash(id);
-        block = simulatedBlock(id);
-      }
+      const anchored = await gateway.issue(id, hash);
+      txHash = anchored.txHash;
+      block = anchored.blockNumber;
       await query(
-        `update credentials set tx_hash = $2, block_number = $3, contract_address = $4, status = 'valid'
+        `update credentials
+            set tx_hash = $2, block_number = $3, contract_address = $4, chain_id = $5, status = 'valid'
           where id = $1`,
-        [credentialId, txHash, block, process.env.CREDENTIAL_CONTRACT_ADDRESS || null],
+        [credentialId, txHash, block, gateway.contractAddress, gateway.chainId],
       );
     } catch (err) {
       req.log.error({ err, credentialId }, 'chain anchor failed — staying pending');
     }
 
-    req.log.info({ userId, credentialId, chainMode }, 'credential issued');
+    req.log.info({ userId, credentialId, chainMode: gateway.mode }, 'credential issued');
     const row = await loadCredential(credentialId);
     return reply.code(201).send(row);
   });
@@ -364,24 +363,4 @@ async function loadCredential(id: string) {
     status: row.status,
     issuedAt: row.issued_at.toISOString(),
   };
-}
-
-/** Sepolia issue() via ethers — only called when chainMode === 'sepolia'. */
-export async function anchorOnChain(id: string, contentHashHex: string): Promise<{ txHash: string; block: number }> {
-  const { ethers } = await import('ethers');
-  const { SEPOLIA_RPC_URL, ISSUER_PRIVATE_KEY, CREDENTIAL_CONTRACT_ADDRESS } = process.env;
-  const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-  const signer = new ethers.Wallet(ISSUER_PRIVATE_KEY!, provider);
-  const registry: any = new ethers.Contract(
-    CREDENTIAL_CONTRACT_ADDRESS!,
-    [
-      'function issue(bytes32 idHash, bytes32 contentHash)',
-      'event CredentialIssued(bytes32 indexed idHash, bytes32 contentHash)',
-    ],
-    signer,
-  );
-  const tx = await registry.issue(idHash(id), contentHashHex);
-  const receipt = await tx.wait();
-  if (!receipt) throw new Error('transaction dropped');
-  return { txHash: receipt.hash as string, block: Number(receipt.blockNumber) };
 }

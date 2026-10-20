@@ -1,9 +1,8 @@
 import 'dotenv/config';
 import { Contract, JsonRpcProvider } from 'ethers';
-import { chainMode } from '../config.js';
 import { query } from '../db.js';
-import { anchorOnChain } from '../routes/modules.js';
 import { idHash } from './credential.js';
+import { getChainGateway } from '../services/chain-gateway.js';
 import artifact from '../../../blockchain/exports/ImariCredentialRegistry.json' with { type: 'json' };
 
 /**
@@ -17,7 +16,8 @@ import artifact from '../../../blockchain/exports/ImariCredentialRegistry.json' 
  * original anchor attempt failed (RPC hiccup, node restart, …).
  */
 export async function startChainWatcher(): Promise<void> {
-  if (chainMode !== 'sepolia') {
+  const gateway = getChainGateway();
+  if (gateway.mode !== 'sepolia') {
     console.log('[watcher] simulate mode — no chain events');
     return;
   }
@@ -53,12 +53,16 @@ export function startRetrySweeper(intervalMs = 30_000): NodeJS.Timeout {
         `select id, hash from credentials
           where status = 'pending' and tx_hash is null and issued_at < now() - interval '15 seconds'`,
       );
+      const gateway = getChainGateway();
       for (const row of stuck.rows) {
         console.log(`[retry] re-anchoring ${row.id}…`);
         try {
-          if (chainMode === 'sepolia') {
-            const a = await anchorOnChain(row.id, row.hash);
-            await query(`update credentials set tx_hash = $2, block_number = $3, status = 'valid' where id = $1`, [row.id, a.txHash, a.block]);
+          if (gateway.mode === 'sepolia') {
+            const anchored = await gateway.issue(row.id, row.hash);
+            await query(
+              `update credentials set tx_hash = $2, block_number = $3, chain_id = $4, status = 'valid' where id = $1`,
+              [row.id, anchored.txHash, anchored.blockNumber, gateway.chainId],
+            );
           } else {
             // Simulate-mode rows already got simulated tx hashes at insert time.
           }

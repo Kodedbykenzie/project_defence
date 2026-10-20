@@ -11,7 +11,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "e2e": "tsx scripts/e2e-lifecycle.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

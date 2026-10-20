@@ -1,7 +1,8 @@
 import { buildApp } from './app.js';
-import { config, chainMode } from './config.js';
+import { config } from './config.js';
 import { closePool, query } from './db.js';
 import { startChainWatcher, startRetrySweeper } from './lib/watcher.js';
+import { getChainGateway } from './services/chain-gateway.js';
 
 async function main(): Promise<void> {
   const app = await buildApp();
@@ -21,8 +22,18 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Resolve the live chain id once, so every credential records the network
+  // it was actually anchored on instead of a hard-coded default.
+  const gateway = getChainGateway();
+  if (gateway.mode === 'sepolia' && 'detectChainId' in gateway) {
+    await (gateway as { detectChainId(): Promise<number> }).detectChainId();
+  }
+
   await app.listen({ port: config.PORT, host: config.HOST });
-  app.log.info({ chainMode }, 'credential anchoring mode');
+  app.log.info(
+    { chainMode: gateway.mode, chainId: gateway.chainId, network: gateway.network },
+    'credential anchoring mode',
+  );
   await startChainWatcher().catch((err) => app.log.warn({ err }, 'chain watcher disabled'));
   startRetrySweeper();
 

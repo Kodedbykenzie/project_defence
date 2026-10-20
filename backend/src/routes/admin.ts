@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { one, query, setActor, withTx } from '../db.js';
 import { AppError, conflict, notFound } from '../errors.js';
 import { requireRole } from '../auth-plugin.js';
+import { getChainGateway } from '../services/chain-gateway.js';
 
 // ------------------------------------------------------------------ shapes
 
@@ -370,33 +371,24 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     );
     if (!target) throw notFound('CREDENTIAL_NOT_FOUND');
 
-    // Chain first when configured: status only flips on-chain success so the
-    // DB never claims something the registry disagrees with.
-    const { chainMode } = await import('../config.js');
-    if (chainMode === 'sepolia') {
+    // Chain first: the status only flips on-chain once the transaction is
+    // confirmed, so the database never claims something the registry
+    // disagrees with.
+    const gateway = getChainGateway();
+    if (gateway.mode === 'sepolia') {
       try {
-        const { ethers } = await import('ethers');
-        const { SEPOLIA_RPC_URL, ISSUER_PRIVATE_KEY, CREDENTIAL_CONTRACT_ADDRESS } = process.env;
-        const signer = new ethers.Wallet(ISSUER_PRIVATE_KEY!, new ethers.JsonRpcProvider(SEPOLIA_RPC_URL));
-        const registry: any = new ethers.Contract(
-          CREDENTIAL_CONTRACT_ADDRESS!,
-          ['function revoke(bytes32)', 'function reinstate(bytes32)'],
-          signer,
-        );
-        const { idHash } = await import('../lib/credential.js');
         try {
-          const tx = status === 'revoked' ? await registry.revoke(idHash(target.id)) : await registry.reinstate(idHash(target.id));
-          await tx.wait();
+          const tx =
+            status === 'revoked'
+              ? await gateway.revoke(target.id)
+              : await gateway.reinstate(target.id);
+          await tx;
         } catch (chainErr) {
           // The chain may already be in the desired state (e.g. an earlier
-          // request anchored it but the DB write rolled back). Reconcile.
-          const reader: any = new ethers.Contract(
-            CREDENTIAL_CONTRACT_ADDRESS!,
-            ['function get(bytes32) view returns (bytes32,uint64,uint64,uint8)'],
-            signer,
-          );
-          const rec = await reader.get(idHash(target.id));
-          const onChainStatus = Number(rec[3]) === 2 ? 'revoked' : Number(rec[3]) === 1 ? 'valid' : 'none';
+          // request anchored it but the DB write rolled back). Reconcile
+          // against the contract instead of guessing.
+          const onChain = await gateway.read(target.id);
+          const onChainStatus = onChain?.status ?? 'none';
           if (onChainStatus !== status) {
             req.log.error({ err: chainErr, id }, 'chain status change failed');
             throw conflict('CHAIN_ERROR', 'Could not update the on-chain status.');

@@ -42,6 +42,23 @@ export async function buildApp(): Promise<FastifyInstance> {
     keyGenerator: (req) => req.ip,
   });
 
+  // --- body parsing ---------------------------------------------------------
+  // Treat an empty JSON body as `{}`. Several endpoints are pure commands
+  // ("mark this lesson complete") and a client that sends
+  // `Content-Type: application/json` with no payload should get a 200, not a
+  // 400 about a missing body.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    const raw = typeof body === 'string' ? body.trim() : '';
+    if (raw === '') return done(null, {});
+    try {
+      done(null, JSON.parse(raw));
+    } catch (err) {
+      const error = err as Error & { statusCode?: number };
+      error.statusCode = 400;
+      done(error, undefined);
+    }
+  });
+
   // --- auth: parse bearer token on every request, guards decide ------------
   app.addHook('onRequest', attachUser);
 

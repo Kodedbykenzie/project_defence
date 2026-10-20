@@ -236,7 +236,12 @@ create trigger modules_notify after insert or update of published on modules for
 -- ---------------------------------------------------------------------
 -- Audit trail for admin-managed tables
 -- ---------------------------------------------------------------------
-create or replace function audit_row() returns trigger language plpgsql security definer as $$
+-- SECURITY DEFINER with a pinned search_path: the function resolves
+-- `audit_log` itself instead of inheriting the caller's path. Without the
+-- SET clause, any connection whose search_path does not contain `imari`
+-- makes the trigger fail with "relation audit_log does not exist".
+create or replace function audit_row() returns trigger language plpgsql security definer
+set search_path = imari, public as $$
 declare
   actor uuid := nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
 begin
