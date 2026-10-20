@@ -95,6 +95,19 @@ paths:
       security: []
       requestBody: { content: { application/json: { schema: { type: object, properties: { email: { type: string }, password: { type: string } } } } } }
       responses: { '200': { description: Session JWT }, '401': { description: Bad credentials } }
+  /auth/refresh:
+    post:
+      security: []
+      description: Rotate a refresh token. The presented token is revoked and replaced.
+      requestBody: { content: { application/json: { schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } } } } }
+      responses:
+        '200': { description: New access + refresh token }
+        '401': { description: INVALID_REFRESH · SESSION_ENDED · REFRESH_REUSED · REFRESH_EXPIRED }
+  /auth/logout:
+    post:
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } } } } }
+      responses: { '204': { description: Session revoked } }
   /auth/google:
     post:
       security: []

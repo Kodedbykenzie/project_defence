@@ -1,4 +1,4 @@
-import type { Question } from '../types/platform';
+import type { Question } from '../types/platform.js';
 
 export const diagnosticQuestions: Question[] = [
 {

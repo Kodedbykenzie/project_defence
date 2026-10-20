@@ -1,4 +1,4 @@
-import type { LearningModule } from '../types/platform';
+import type { LearningModule } from '../types/platform.js';
 
 const bnr = { title: 'Financial consumer education', source: 'National Bank of Rwanda', url: 'https://www.bnr.rw' };
 const oecd = { title: 'Core competencies framework on financial literacy for youth', source: 'OECD/INFE', url: 'https://www.oecd.org/financial/education/' };

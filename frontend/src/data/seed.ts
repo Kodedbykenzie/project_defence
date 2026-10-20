@@ -1,4 +1,4 @@
-import type { Account, AppNotification, Invite, Learner, SeedCredential } from '../types/platform';
+import type { Account, AppNotification, Invite, Learner, SeedCredential } from '../types/platform.js';
 
 export const DEMO_INVITE_CODE = 'ALU-PILOT';
 
