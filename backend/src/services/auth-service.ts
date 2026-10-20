@@ -368,7 +368,11 @@ export class AuthService {
          from users where id = $1`,
       [userId],
     );
-    const user = rows[0]!;
+    const user = rows[0];
+    if (!user) {
+      // The account disappeared between the login and the session write.
+      throw unauthorized('INVALID_CREDENTIALS', 'Email or password is incorrect.');
+    }
     const accessToken = await this.deps.signAccessToken({
       sub: user.id,
       role: user.role,

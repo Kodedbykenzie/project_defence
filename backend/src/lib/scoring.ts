@@ -84,6 +84,22 @@ export function scoreAnswers(
 }
 
 /**
+ * The weak-domain rule (proposal §3.3.3), as a pure function:
+ *   weak = domains scoring below the threshold, weakest first.
+ *
+ * Kept free of database access so the recommendation logic can be unit
+ * tested directly, and so the client and the server share one definition.
+ */
+export function weakDomains(
+  domainScores: DomainScoreRow[],
+  threshold: number,
+): DomainScoreRow[] {
+  return domainScores
+    .filter((d) => d.score < threshold)
+    .sort((a, b) => a.score - b.score);
+}
+
+/**
  * Published modules in weak domains, weakest domain first.
  * SQL ORDER BY keeps module order stable within a domain (created_at, slug).
  */
@@ -91,9 +107,7 @@ export async function buildRecommendations(
   domainScores: DomainScoreRow[],
   threshold: number,
 ): Promise<RecommendationDraft[]> {
-  const weak = domainScores
-    .filter((d) => d.score < threshold)
-    .sort((a, b) => a.score - b.score);
+  const weak = weakDomains(domainScores, threshold);
   if (!weak.length) return [];
 
   const weakIds = weak.map((d) => d.domainId);

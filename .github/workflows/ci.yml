@@ -19,6 +19,27 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    # The integration tests need a real PostgreSQL: they exercise the schema,
+    # the triggers and the row-level policies, not a mock.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/imari
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/imari_test
+      JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
+      RESET_CODE_PEPPER: ci-only-pepper-0123456789
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,6 +48,7 @@ jobs:
         working-directory: backend
       - run: npm run typecheck
         working-directory: backend
+      # The test helper creates and migrates imari_test on demand.
       - run: npm test
         working-directory: backend
 
@@ -41,4 +63,6 @@ jobs:
       - run: npm run typecheck
         working-directory: frontend
       - run: npm run lint
+        working-directory: frontend
+      - run: npm run build
         working-directory: frontend
