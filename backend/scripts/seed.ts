@@ -11,12 +11,31 @@
  *
  *   npm run db:seed
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { hashPassword } from '../src/security.js';
 import { query, withTx } from '../src/db.js';
 import { contentHash } from '../src/lib/credential.js';
 import { initialModules } from '../../frontend/src/data/modules.js';
 import { diagnosticQuestions } from '../../frontend/src/data/questions.js';
 import { seedLearners, seedInvites, DEMO_PASSWORD } from '../../frontend/src/data/seed.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Reference rows (domains, institutions, platform settings) must exist before
+ * any module can reference a domain_id. This SQL is idempotent
+ * (`on conflict do nothing`), so running it on every seed is safe.
+ */
+async function seedReferenceData(): Promise<void> {
+  const file = join(here, '..', '..', 'database', 'seed', '0001_reference_data.sql');
+  const sql = readFileSync(file, 'utf8');
+  await withTx(async (client) => {
+    await client.query(sql);
+  });
+  console.log('  ✓ reference data (domains, institutions, settings)');
+}
 
 const SLUG_OVERRIDES: Record<string, string> = {
   'm-budgeting': 'student-budget',
@@ -39,7 +58,14 @@ const slugify = (text: string) =>
 async function seedContent(): Promise<Map<string, string>> {
   const slugByModuleId = new Map<string, string>();
   const existing = await query<{ n: number }>(`select count(*)::int as n from modules`);
-  if ((existing.rows[0]?.n ?? 0) > 0) {
+  // Only skip when EVERY expected module is present. A partial seed (e.g. an
+  // interrupted run) must be repaired, not silently accepted.
+  const expectedSlugs = new Set(initialModules.map((m) => SLUG_OVERRIDES[m.id] ?? slugify(m.title)));
+  const { rows: present } = await query<{ slug: string }>(`select slug from modules`);
+  const presentSlugs = new Set(present.map((r) => r.slug));
+  const complete = [...expectedSlugs].every((s) => presentSlugs.has(s));
+
+  if (complete) {
     const rows = await query<{ id: string; slug: string }>(`select id, slug from modules`);
     // Reconstruct the frontend-id → slug mapping from titles via overrides first.
     for (const m of initialModules) {
@@ -50,17 +76,32 @@ async function seedContent(): Promise<Map<string, string>> {
     console.log(`  · modules already present (${rows.rowCount}), skipping content`);
     return slugByModuleId;
   }
+  console.log(`  · seeding ${initialModules.length} modules (existing: ${existing.rows[0]?.n ?? 0})`);
 
   for (const m of initialModules) {
     const slug = SLUG_OVERRIDES[m.id] ?? slugify(m.title);
     const moduleId = await withTx(async (client) => {
-      const mod = await client.query<{ id: string }>(
+      // `xmax = 0` distinguishes a fresh INSERT from an UPDATE, so re-seeding
+      // never duplicates a module's lessons/questions.
+      const mod = await client.query<{ id: string; inserted: boolean }>(
         `insert into modules (slug, domain_id, title, competency, summary, minutes,
                               passing_score, published, is_starter)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         on conflict (slug) do update
+           set domain_id     = excluded.domain_id,
+               title         = excluded.title,
+               competency    = excluded.competency,
+               summary       = excluded.summary,
+               minutes       = excluded.minutes,
+               passing_score = excluded.passing_score,
+               published     = excluded.published,
+               is_starter    = excluded.is_starter
+         returning id, (xmax = 0) as inserted`,
         [slug, m.domain, m.title, m.competency, m.summary, m.minutes, m.passingScore, m.published, m.onboarding ?? false],
       );
       const id = mod.rows[0]!.id;
+      // Children already exist for a pre-existing module — leave them intact.
+      if (!mod.rows[0]!.inserted) return id;
 
       for (let i = 0; i < m.objectives.length; i++) {
         await client.query(
@@ -147,7 +188,10 @@ async function seedAccounts(): Promise<Map<string, string>> {
     const { rows } = await query<{ id: string }>(
       `insert into users (email, password_hash, provider, role, full_name, email_verified_at, created_at)
        values ($1, $2, 'password', 'student', $3, now(), $4)
-       on conflict (email) do nothing
+       on conflict (email) do update
+         set full_name        = excluded.full_name,
+             password_hash    = excluded.password_hash,
+             email_verified_at = excluded.email_verified_at
        returning id`,
       [l.email, cohortHash, l.name, new Date(l.joinedAt)],
     );
@@ -260,20 +304,22 @@ async function seedAttemptsAndProgress(
       const moduleId = modRows[0]?.id;
       if (!moduleId) continue;
 
+      const prog = progress as { lessonsDone: number[]; activityResponse: string | null; quizScores: number[]; status: string };
+
       await query(
         `insert into module_progress (user_id, module_id, status, lessons_done, activity_response, best_quiz_score, started_at, completed_at)
          values ($1, $2, 'in_progress', $3, $4, $5, now(), case when $6 then now() else null end)
          on conflict (user_id, module_id) do nothing`,
         [
           userId, moduleId,
-          progress.lessonsDone,
-          progress.activityResponse,
-          progress.quizScores.length ? Math.max(...progress.quizScores) : null,
-          progress.status === 'completed',
+          prog.lessonsDone,
+          prog.activityResponse,
+          prog.quizScores.length ? Math.max(...prog.quizScores) : null,
+          prog.status === 'completed',
         ],
       );
       // quiz attempt history so Results pages show scores
-      for (const s of progress.quizScores) {
+      for (const s of prog.quizScores) {
         await query(
           `insert into quiz_attempts (user_id, module_id, answers, score, passed, created_at)
            values ($1, $2, '{}'::smallint[], $3, $4, now())
@@ -326,7 +372,7 @@ async function seedCredentials(
     await query(
       `insert into credentials
          (id, user_id, module_id, competency, holder_name, hash, status, issued_at, confirmed_at, revoked_at, revoked_reason, tx_hash, block_number)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        on conflict (id) do nothing`,
       [
         c.id, uid, moduleId, c.competency, c.learnerName, hash,
@@ -344,6 +390,7 @@ async function seedCredentials(
 
 async function main(): Promise<void> {
   console.log('Seeding imari…');
+  await seedReferenceData();
   const slugByModuleId = await seedContent();
   const userIdByEmail = await seedAccounts();
   await seedInvitesFn();
