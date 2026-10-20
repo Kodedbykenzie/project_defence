@@ -15,14 +15,14 @@ begin
 end $$;
 
 -- unaccent may not be installed; strip common accents by hand
-create or replace function unaccent_safe(input text) returns text language plpgsql immutable as $
+create or replace function unaccent_safe(input text) returns text language plpgsql immutable as $$
 begin
   return translate(input, 'àáâäãåèéêëìíîïòóôöõùúûüçñÀÁÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÇÑ', 'aaaaaaeeeeiiiiooooouuuucnAAAAAAEEEEIIIIOOOOOUUUUCN');
-end $;
+end $$;
 
-create or replace function slugify(input text) returns text language sql immutable as $
+create or replace function slugify(input text) returns text language sql immutable as $$
   select coalesce(nullif(trim(both '-' from regexp_replace(lower(unaccent_safe(input)), '[^a-z0-9]+', '-', 'g')), ''), 'item')
-$;
+$$;
 
 create trigger users_updated_at            before update on users            for each row execute function set_updated_at();
 create trigger student_profiles_updated_at before update on student_profiles for each row execute function set_updated_at();
