@@ -22,7 +22,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
     trustProxy: true,       // behind nginx / caddy in production
     bodyLimit: 256 * 1024,  // 256 KB JSON payloads
-    disableRequestLogging: false,
+    // Request logging stays on (Fastify's default).
   });
 
   // --- security middleware -------------------------------------------------
@@ -30,8 +30,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: false,   // API responses; the SPA sets its own CSP
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
+  // The API console in docs/ can be opened straight from disk, which browsers
+  // send as `Origin: null`. Allow that outside production only — deployed
+  // clients must come from APP_ORIGIN.
+  const allowedOrigins = config.APP_ORIGIN.split(',').map((o) => o.trim());
   await app.register(cors, {
-    origin: config.APP_ORIGIN.split(',').map((o) => o.trim()),
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl, server-to-server, same-origin
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      if (!isProd && origin === 'null') return cb(null, true);
+      cb(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
@@ -80,8 +89,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   // afterwards leaves /v1 routes on Fastify's default handler (every Zod
   // failure would surface as 500 instead of 422).
   app.setErrorHandler(errorHandler);
-  app.setNotFoundHandler((req, reply) => {
-    reply.code(404).send({ code: 'NOT_FOUND', message: `No route for ${req.method} ${req.url}` });
+  // API-only service: no SPA fallback, no browser-facing HTML.
+  // Every missing route responds with a consistent JSON 404, so a client
+  // that points at the backend root (or hits an unknown path) always gets a
+  // parseable error instead of an HTML page it can't render.
+  app.setNotFoundHandler((_req, reply) => {
+    reply.code(404).send({ code: 'NOT_FOUND', message: 'This API has no route for that path.' });
   });
 
   // --- api -----------------------------------------------------------------

@@ -16,6 +16,8 @@ interface Recorded {
   params: readonly unknown[];
 }
 
+type QueryFn = <T>(text: string, params?: readonly unknown[]) => Promise<{ rows: T[] }>;
+
 class FakeDb {
   readonly calls: Recorded[] = [];
   private readonly handlers: { match: RegExp; rows: unknown[] }[] = [];
@@ -26,15 +28,7 @@ class FakeDb {
     return this;
   }
 
-  /** Register the rows returned for the Nth match of `match`. */
-  onNth(match: RegExp, n: number, rows: unknown[]): this {
-    const seen = this.handlers.filter((h) => h.match.test(match));
-    void seen;
-    this.handlers.push({ match, rows, nth: n } as never);
-    return this;
-  }
-
-  readonly query = async <T,>(text: string, params: readonly unknown[] = []): Promise<{ rows: T[] }> => {
+  readonly query: QueryFn = async <T,>(text: string, params: readonly unknown[] = []): Promise<{ rows: T[] }> => {
     this.calls.push({ text, params });
     for (const handler of this.handlers) {
       if (handler.match.test(text)) return { rows: handler.rows as T[] };
@@ -42,7 +36,7 @@ class FakeDb {
     return { rows: [] as T[] };
   };
 
-  readonly withTx = async <T,>(fn: (client: { query: typeof this.query }) => Promise<T>): Promise<T> =>
+  readonly withTx = async <T,>(fn: (client: { query: QueryFn }) => Promise<T>): Promise<T> =>
     fn({ query: this.query });
 
   /** How many queries matched `pattern`. */

@@ -213,16 +213,31 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
     const m = await findModule(slug, req.user!.role === 'admin');
     const userId = req.user!.sub;
 
-    const { rows: questions } = await query<{ answer_index: number }>(
-      `select answer_index from questions
+    // The answer key is fetched here (never exposed by the module GET) so the
+    // learner gets per-question feedback once the attempt has been graded.
+    const { rows: questions } = await query<{
+      id: string;
+      answer_index: number;
+      explanation: string | null;
+    }>(
+      `select id, answer_index, explanation from questions
         where module_id = $1 and active order by position, id`,
       [m.id],
     );
     if (!questions.length) throw conflict('NO_QUESTIONS', 'This module has no quiz items.');
 
     let correct = 0;
-    questions.forEach((q, i) => {
-      if (answers[i] === q.answer_index) correct += 1;
+    const results = questions.map((q, i) => {
+      const selected = answers[i] ?? null;
+      const isCorrect = selected === q.answer_index;
+      if (isCorrect) correct += 1;
+      return {
+        questionId: q.id,
+        correct: isCorrect,
+        selected,
+        answer: q.answer_index,
+        explanation: q.explanation,
+      };
     });
     const score = Math.round((correct / questions.length) * 100);
     const passed = score >= m.passing_score;
@@ -233,7 +248,7 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
       [userId, m.id, answers, score, passed],
     );
 
-    return { score, passed, correct, total: questions.length, passingScore: m.passing_score };
+    return { score, passed, correct, total: questions.length, passingScore: m.passing_score, results };
   });
 
   // POST /modules/:slug/credential — issue when eligible (trigger enforces)

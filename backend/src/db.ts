@@ -5,14 +5,14 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
+  // Every session resolves bare table names into the imari schema. Set at
+  // connection time via the libpq `options` parameter rather than a query on
+  // the `connect` event: a query there races with the first caller's query on
+  // the same client (pg warns "client is already executing a query").
+  options: '-c search_path=imari,public',
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-});
-
-// Every session resolves bare table names into the imari schema.
-pool.on('connect', (client) => {
-  void client.query('set search_path = imari, public');
 });
 
 pool.on('error', (err) => {

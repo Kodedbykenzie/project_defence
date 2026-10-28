@@ -1,25 +1,44 @@
 import React, { useState } from 'react';
 import { ArrowRightIcon, CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from 'lucide-react';
 import { primaryButton, secondaryButton } from '../../../utils/styles';
-import type { LearningModule } from '../../../types/platform';
+import type { LearningModule, QuizFeedback } from '../../../types/platform';
+
+interface QuizResult {
+  score: number;
+  passed: boolean;
+  results?: QuizFeedback[];
+}
 
 interface QuizStepProps {
   module: LearningModule;
   bestScore: number | null;
-  onSubmit: (answers: number[]) => {score: number;passed: boolean;};
+  /** The server grades the attempt and returns the per-question feedback. */
+  onSubmit: (answers: number[]) => Promise<QuizResult>;
   onContinue: () => void;
 }
 
 export function QuizStep({ module, bestScore, onSubmit, onContinue }: QuizStepProps) {
   const [answers, setAnswers] = useState<(number | null)[]>(() => module.quiz.map(() => null));
-  const [result, setResult] = useState<{score: number;passed: boolean;} | null>(null);
+  const [result, setResult] = useState<QuizResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const allAnswered = answers.every((a) => a !== null);
 
-  const submit = () => setResult(onSubmit(answers as number[]));
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      setResult(await onSubmit(answers as number[]));
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const retry = () => {
     setAnswers(module.quiz.map(() => null));
     setResult(null);
   };
+
+  /** Feedback for one question, when the server returned it. */
+  const feedbackFor = (questionId: string): QuizFeedback | undefined =>
+    result?.results?.find((r) => r.questionId === questionId);
 
   return (
     <article>
@@ -52,15 +71,18 @@ export function QuizStep({ module, bestScore, onSubmit, onContinue }: QuizStepPr
       }
 
       <ol className="mt-8 space-y-8">
-        {module.quiz.map((q, qi) =>
-        <li key={q.id}>
+        {module.quiz.map((q, qi) => {
+        const feedback = feedbackFor(q.id);
+        const correctIndex = feedback?.answer ?? q.answer;
+        return (
+          <li key={q.id}>
             <p id={`q-${q.id}`} className="font-medium text-ink">
               {qi + 1}. {q.prompt}
             </p>
             <div role="radiogroup" aria-labelledby={`q-${q.id}`} className="mt-3 grid gap-2 sm:grid-cols-2">
               {q.options.map((option, oi) => {
               const selected = answers[qi] === oi;
-              const isCorrect = oi === q.answer;
+              const isCorrect = correctIndex !== undefined && oi === correctIndex;
               let tone = selected ? 'border-brand-500 bg-brand-50' : 'border-line hover:border-brand-200 hover:bg-subtle';
               if (result) {
                 if (isCorrect) tone = 'border-emerald-400 bg-emerald-50';else
@@ -84,15 +106,17 @@ export function QuizStep({ module, bestScore, onSubmit, onContinue }: QuizStepPr
 
             })}
             </div>
-            {result && <p className="mt-2 text-sm text-muted">{q.explanation}</p>}
+            {result &&
+            <p className="mt-2 text-sm text-muted">{feedback?.explanation ?? q.explanation}</p>}
           </li>
-        )}
+        );
+        })}
       </ol>
 
       {!result &&
       <div className="mt-10 flex justify-end border-t border-line pt-5">
-          <button type="button" onClick={submit} disabled={!allAnswered} className={primaryButton}>
-            Submit quiz
+          <button type="button" onClick={submit} disabled={!allAnswered || submitting} className={primaryButton}>
+            {submitting ? 'Grading…' : 'Submit quiz'}
           </button>
         </div>
       }

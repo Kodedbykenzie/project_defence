@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { defaultThreshold } from '../data/domains';
@@ -10,6 +10,14 @@ import { API_CONFIGURED, API_URL } from '../config/chain';
 import { emptyProgress, getRecommendations, isEligible, scoreAnswers } from '../utils/recommendation';
 import { inviteStatus, newInviteCode, normaliseCode } from '../utils/invite';
 import { moduleHref } from '../utils/slug';
+import { getSession, onSessionChange } from '../utils/api';
+import {
+  learningApi,
+  toAttempt,
+  toLearningModule,
+  toProgress,
+  toQuestion,
+} from '../utils/learning-api';
 import type {
   AppNotification,
   AssessmentAttempt,
@@ -20,7 +28,8 @@ import type {
   Learner,
   LearnerPreferences,
   ModuleProgress,
-  Question } from
+  Question,
+  QuizFeedback } from
 '../types/platform';
 
 interface PlatformState {
@@ -56,11 +65,16 @@ type NotificationInput = Omit<AppNotification, 'id' | 'at' | 'readBy'>;
 interface PlatformValue extends PlatformState {
   setThreshold: (value: number) => void;
   addLearner: (input: NewLearner) => void;
+  /**
+   * Attach the signed-in API account to the local learner map, so the rest of
+   * the client keeps working with one learner record per user id.
+   */
+  adoptApiLearner: (id: string, name: string, email: string) => void;
   renameLearner: (id: string, name: string) => void;
-  submitAssessment: (learnerId: string, kind: 'pre' | 'post', answers: Record<string, number>, durationMs: number) => AssessmentAttempt;
+  submitAssessment: (learnerId: string, kind: 'pre' | 'post', answers: Record<string, number>, durationMs: number) => Promise<AssessmentAttempt>;
   completeLesson: (learnerId: string, moduleId: string, index: number) => void;
   submitActivity: (learnerId: string, moduleId: string, response: string) => void;
-  submitQuiz: (learnerId: string, moduleId: string, answers: number[]) => {score: number;passed: boolean;};
+  submitQuiz: (learnerId: string, moduleId: string, answers: number[]) => Promise<{score: number;passed: boolean;results?: QuizFeedback[];}>;
   issueCredential: (learnerId: string, moduleId: string) => Promise<Credential>;
   rateModule: (learnerId: string, moduleId: string, rating: number) => void;
   setCredentialStatus: (id: string, status: CredentialStatus) => void;
@@ -77,6 +91,8 @@ interface PlatformValue extends PlatformState {
   extendInvite: (id: string, days: number) => void;
   markRead: (userId: string, ids: string[]) => void;
   resetPlatform: () => void;
+  /** True while the client is loading content from the API. */
+  isSyncing: boolean;
 }
 
 const PlatformContext = createContext<PlatformValue | null>(null);
@@ -115,8 +131,119 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
   const [state, setState] = usePersistentState<PlatformState>('imari:v3:platform', buildInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const notify = useCallback((items: NotificationInput[]) => setState((prev) => withNotifications(prev, items)), [setState]);
+
+  /**
+   * Load the learner's world from the API: the module catalogue, the
+   * diagnostic, their attempts and their progress.
+   */
+  const hydrateFromApi = useCallback(async (userId: string) => {
+    if (!API_CONFIGURED) return;
+    setIsSyncing(true);
+    try {
+      const [summaries, diagnostic, attempts, myCredentials, me] = await Promise.all([
+        learningApi.listModules(),
+        learningApi.listDiagnostic(),
+        learningApi.listAttempts(),
+        learningApi.listMyCredentials(),
+        learningApi.getMe(),
+      ]);
+      const details = await Promise.all(summaries.map((m) => learningApi.getModule(m.slug)));
+      const modules = details.map(toLearningModule);
+
+      const progress: Record<string, ModuleProgress> = {};
+      for (const summary of summaries) progress[summary.id] = toProgress(summary.progress);
+
+      const mappedAttempts: AssessmentAttempt[] = attempts
+        .filter((a) => a.completedAt)
+        .map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          domainScores: a.domainScores.reduce(
+            (acc, d) => ({ ...acc, [d.domain]: d.score }),
+            {} as AssessmentAttempt['domainScores'],
+          ),
+          total: a.total,
+          completedAt: a.completedAt as string,
+          durationMs: a.durationMs ?? 0,
+          recommendationMs: a.recommendationMs ?? 0,
+        }));
+
+      setState((prev) => {
+        // The learner's onboarding preferences come from the API, so a
+        // returning learner is not sent back to the preference selector.
+        const apiPreferences: LearnerPreferences | undefined = me.preferences.completedAt
+          ? {
+            interests: me.preferences.interests as LearnerPreferences['interests'],
+            goal: me.preferences.goal ?? '',
+            weeklyTime: me.preferences.weeklyTime ?? '',
+            style: me.preferences.learningStyle ?? '',
+            language: (me.preferences.language as LearnerPreferences['language']) ?? 'en',
+            completedAt: me.preferences.completedAt,
+          }
+          : undefined;
+
+        const learner: Learner = {
+          ...(prev.learners[userId] ?? {
+            id: userId,
+            name: me.user.name,
+            email: me.user.email,
+            university: me.profile.university ?? '',
+            program: me.profile.programme ?? '',
+            joinedAt: new Date().toISOString(),
+            attempts: [],
+            progress: {},
+            feedback: {},
+          }),
+          name: me.user.name,
+          email: me.user.email,
+          university: me.profile.university ?? prev.learners[userId]?.university ?? '',
+          program: me.profile.programme ?? prev.learners[userId]?.program ?? '',
+          preferences: apiPreferences ?? prev.learners[userId]?.preferences,
+          attempts: mappedAttempts,
+          progress,
+        };
+        // Keep only the learner's own credentials in API mode — the seeded
+        // ones belong to the offline demo accounts.
+        const credentials: Credential[] = myCredentials.map((c) => ({
+          id: c.id,
+          learnerId: userId,
+          learnerName: c.holderName,
+          moduleId: c.moduleId,
+          competency: c.competency,
+          issuedAt: c.issuedAt,
+          status: c.status === 'revoked' ? 'revoked' : 'valid',
+          verifications: 0,
+          hash: c.hash,
+          txHash: c.txHash ?? '',
+          block: Number(c.block ?? 0),
+        }));
+        return {
+          ...prev,
+          modules,
+          questions: diagnostic.map(toQuestion),
+          learners: { ...prev.learners, [userId]: learner },
+          credentials,
+        };
+      });
+    } catch (err) {
+      console.error('[imari] could not load content from the API', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [setState]);
+
+  // Load the API content whenever a session starts or ends.
+  useEffect(() => {
+    if (!API_CONFIGURED) return;
+    const handler = (next: { user: { id: string } } | null) => {
+      if (next) void hydrateFromApi(next.user.id);
+    };
+    handler(getSession());
+    return onSessionChange(handler);
+  }, [hydrateFromApi]);
 
   const updateLearner = useCallback(
     (id: string, fn: (l: Learner) => Learner) =>
@@ -157,8 +284,51 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         );
         return next;
       }),
+      adoptApiLearner: (id, name, email) =>
+      setState((prev) => {
+        const existing = prev.learners[id];
+        if (existing) {
+          return {
+            ...prev,
+            learners: { ...prev.learners, [id]: { ...existing, name, email } },
+          };
+        }
+        return {
+          ...prev,
+          learners: {
+            ...prev.learners,
+            [id]: {
+              id,
+              name,
+              email,
+              university: '',
+              program: '',
+              joinedAt: new Date().toISOString(),
+              attempts: [],
+              progress: {},
+              feedback: {},
+            },
+          },
+        };
+      }),
       renameLearner: (id, name) => updateLearner(id, (l) => ({ ...l, name })),
-      submitAssessment: (learnerId, kind, answers, durationMs) => {
+      submitAssessment: async (learnerId, kind, answers, durationMs) => {
+        // The server owns scoring and the recommendation rule, so the metric
+        // in the report is computed against one implementation.
+        if (API_CONFIGURED) {
+          const result = await learningApi.submitAttempt({ kind, answers, durationMs });
+          const attempt = toAttempt(result, durationMs);
+          updateLearner(learnerId, (l) => ({ ...l, attempts: [...l.attempts, attempt] }));
+          const name = stateRef.current.learners[learnerId]?.name ?? 'A student';
+          notify([
+          { recipient: 'admins', kind: 'assessment', title: `${first(name)} finished the ${kind === 'pre' ? 'diagnostic' : 'post-test'}`, body: `Scored ${attempt.total}%`, link: '/admin/students' },
+          kind === 'pre' ?
+          { recipient: learnerId, kind: 'assessment', title: 'Your learning path is ready', body: `You scored ${attempt.total}%`, link: '/app/results' } :
+          { recipient: learnerId, kind: 'assessment', title: 'Post-test complete', body: `You scored ${attempt.total}%`, link: '/app/progress' }]
+          );
+          return attempt;
+        }
+
         const { questions, modules, threshold, learners } = stateRef.current;
         const { domainScores, total } = scoreAnswers(questions, answers);
         const t0 = performance.now();
@@ -175,16 +345,65 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         );
         return attempt;
       },
-      completeLesson: (learnerId, moduleId, index) =>
-      updateProgress(learnerId, moduleId, (p) => ({ ...p, lessonsDone: p.lessonsDone.includes(index) ? p.lessonsDone : [...p.lessonsDone, index] })),
-      submitActivity: (learnerId, moduleId, response) => updateProgress(learnerId, moduleId, (p) => ({ ...p, activityResponse: response })),
-      submitQuiz: (learnerId, moduleId, answers) => {
+      completeLesson: (learnerId, moduleId, index) => {
         const module = stateRef.current.modules.find((m) => m.id === moduleId);
+        if (API_CONFIGURED && module?.slug) {
+          void learningApi.completeLesson(module.slug, index)
+            .then((progress) => {
+              updateLearner(learnerId, (l) => ({ ...l, progress: { ...l.progress, [moduleId]: toProgress(progress) } }));
+            })
+            .catch((err) => console.error('[imari] could not record the lesson', err));
+          return;
+        }
+        updateProgress(learnerId, moduleId, (p) => ({ ...p, lessonsDone: p.lessonsDone.includes(index) ? p.lessonsDone : [...p.lessonsDone, index] }));
+      },
+      submitActivity: (learnerId, moduleId, response) => {
+        const module = stateRef.current.modules.find((m) => m.id === moduleId);
+        if (API_CONFIGURED && module?.slug) {
+          void learningApi.submitActivity(module.slug, response)
+            .then((progress) => {
+              updateLearner(learnerId, (l) => ({ ...l, progress: { ...l.progress, [moduleId]: toProgress(progress) } }));
+            })
+            .catch((err) => console.error('[imari] could not record the activity', err));
+          return;
+        }
+        updateProgress(learnerId, moduleId, (p) => ({ ...p, activityResponse: response }));
+      },
+      submitQuiz: async (learnerId, moduleId, answers) => {
+        const module = stateRef.current.modules.find((m) => m.id === moduleId);
+        if (API_CONFIGURED && module?.slug) {
+          const result = await learningApi.submitQuiz(module.slug, answers);
+          // The server grades the attempt and returns the feedback, so the
+          // client never needs the answer key.
+          updateLearner(learnerId, (l) => ({
+            ...l,
+            progress: {
+              ...l.progress,
+              [moduleId]: {
+                ...(l.progress[moduleId] ?? emptyProgress),
+                quizScores: [...(l.progress[moduleId]?.quizScores ?? []), result.score],
+                status: result.passed ? 'completed' : (l.progress[moduleId]?.status ?? 'in_progress'),
+              },
+            },
+          }));
+          return { score: result.score, passed: result.passed, results: result.results };
+        }
+
         if (!module) return { score: 0, passed: false };
         const correct = module.quiz.filter((q, i) => answers[i] === q.answer).length;
         const score = Math.round(correct / module.quiz.length * 100);
         updateProgress(learnerId, moduleId, (p) => ({ ...p, quizScores: [...p.quizScores, score] }));
-        return { score, passed: score >= module.passingScore };
+        return {
+          score,
+          passed: score >= module.passingScore,
+          results: module.quiz.map((q, i) => ({
+            questionId: q.id,
+            correct: answers[i] === q.answer,
+            selected: answers[i] ?? null,
+            answer: q.answer ?? 0,
+            explanation: q.explanation ?? null,
+          })),
+        };
       },
       issueCredential: async (learnerId, moduleId) => {
         const existing = stateRef.current.credentials.find((c) => c.learnerId === learnerId && c.moduleId === moduleId);
@@ -195,13 +414,20 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         let credential: Credential;
         if (API_CONFIGURED) {
           const slug = module.slug ?? moduleId;
-          const res = await fetch(`${API_URL}/v1/modules/${slug}/credential`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ learnerId, learnerName: learner.name, moduleId, competency: module.competency }),
-          });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error ?? 'Issuance failed');
-          credential = json.credential;
+          const row = await learningApi.issueCredential(slug, { learnerId, learnerName: learner.name });
+          credential = {
+            id: row.id,
+            learnerId,
+            learnerName: row.holderName ?? learner.name,
+            moduleId,
+            competency: row.competency,
+            issuedAt: row.issuedAt,
+            status: row.status === 'revoked' ? 'revoked' : 'valid',
+            verifications: 0,
+            hash: row.hash,
+            txHash: row.txHash ?? '',
+            block: Number(row.block ?? 0),
+          };
         } else {
           await wait(1700);
           const base = { id: newCredentialId(), learnerId, learnerName: learner.name, moduleId, competency: module.competency, issuedAt: new Date().toISOString(), status: 'valid' as const, verifications: 0 };
@@ -256,7 +482,21 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         return next;
       }),
       deleteModule: (id) => setState((prev) => ({ ...prev, modules: prev.modules.filter((m) => m.id !== id) })),
-      savePreferences: (learnerId, prefs) => updateLearner(learnerId, (l) => ({ ...l, preferences: prefs })),
+      savePreferences: (learnerId, prefs) => {
+        updateLearner(learnerId, (l) => ({ ...l, preferences: prefs }));
+        if (API_CONFIGURED) {
+          void learningApi
+            .savePreferences({
+              language: prefs.language,
+              interests: prefs.interests,
+              goal: prefs.goal,
+              weeklyTime: prefs.weeklyTime,
+              learningStyle: prefs.style,
+              completedAt: prefs.completedAt,
+            })
+            .catch((err) => console.error('[imari] could not save the preferences', err));
+        }
+      },
       toggleModule: (id) =>
       setState((prev) => {
         const m = prev.modules.find((x) => x.id === id);
@@ -307,9 +547,10 @@ export function PlatformProvider({ children }: {children: ReactNode;}) {
         const set = new Set(ids);
         setState((prev) => ({ ...prev, notifications: prev.notifications.map((n) => set.has(n.id) && !n.readBy.includes(userId) ? { ...n, readBy: [...n.readBy, userId] } : n) }));
       },
-      resetPlatform: () => setState(buildInitialState())
+      resetPlatform: () => setState(buildInitialState()),
+      isSyncing,
     }),
-    [state, setState, updateLearner, updateProgress, notify]
+    [state, setState, updateLearner, updateProgress, notify, isSyncing]
   );
 
   return <PlatformContext.Provider value={value}>{children}</PlatformContext.Provider>;

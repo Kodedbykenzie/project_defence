@@ -494,4 +494,61 @@ describe('role based access control', () => {
     assert.ok('recommendationAccuracy' in body);
     assert.ok('credentialHealth' in body);
   });
+
+  test('database explorer requires an administrator token', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: '/v1/admin/database/tables' });
+    assert.equal(anonymous.statusCode, 401);
+
+    const studentToken = await signIn('student@test.rw', 'demo1234');
+    const student = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/tables',
+      headers: { authorization: `Bearer ${studentToken}` },
+    });
+    assert.equal(student.statusCode, 403);
+  });
+
+  test('database explorer returns allowlisted read-only rows and rejects unknown tables', async () => {
+    const token = await signIn(ADMIN.email, ADMIN.password);
+    const tables = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/tables',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(tables.statusCode, 200);
+    assert.equal(tables.json().readOnly, true);
+    assert.ok(tables.json().tables.some((table: { name: string }) => table.name === 'modules'));
+
+    const rows = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/rows?table=modules&limit=2&offset=0',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(rows.statusCode, 200);
+    assert.ok(rows.json().rows.length <= 2);
+    assert.ok(!rows.json().columns.includes('password_hash'));
+    assert.ok(!rows.json().columns.includes('answer_index'));
+
+    const invites = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/rows?table=invites&limit=2',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(invites.statusCode, 200);
+    assert.ok(!invites.json().columns.includes('code'));
+
+    const unknownColumn = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/rows?table=modules&column=password_hash&value=x',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(unknownColumn.statusCode, 422);
+
+    const rejected = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/database/rows?table=users;drop%20table%20users',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(rejected.statusCode, 422);
+  });
 });

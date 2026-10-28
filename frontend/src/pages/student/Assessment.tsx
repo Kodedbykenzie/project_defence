@@ -29,13 +29,16 @@ export function Assessment() {
     setStage('questions');
   };
 
-  const submit = () => {
+  const submit = async () => {
     setStage('submitting');
-    window.setTimeout(() => {
-      const attempt = platform.submitAssessment(learner.id, kind, answers, Date.now() - startedAt.current);
+    try {
+      const attempt = await platform.submitAssessment(learner.id, kind, answers, Date.now() - startedAt.current);
       toast.success(kind === 'pre' ? 'Diagnostic complete' : 'Post-test complete', { description: `You scored ${attempt.total}% overall.` });
       navigate('/app/results', { replace: true });
-    }, 800);
+    } catch (err) {
+      setStage('questions');
+      toast.error('Could not submit your answers', { description: err instanceof Error ? err.message : 'Please try again.' });
+    }
   };
 
   if (stage === 'intro') {

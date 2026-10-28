@@ -90,8 +90,8 @@ describe('scoreAnswers', () => {
 
   test('a domain with no items scores 0', () => {
     const { domainScores } = scoreAnswers(DIAGNOSTIC, {}, ['investing']);
-    assert.equal(domainScores[0].score, 0);
-    assert.equal(domainScores[0].total, 0);
+    assert.equal(domainScores[0]?.score, 0);
+    assert.equal(domainScores[0]?.total, 0);
   });
 });
 
@@ -107,7 +107,7 @@ describe('weakDomains — the recommendation rule (proposal §3.3.3)', () => {
   test('a domain one point below the threshold IS weak', () => {
     const weak = weakDomains(rows(['saving', 59]), 60);
     assert.equal(weak.length, 1);
-    assert.equal(weak[0].domainId, 'saving');
+    assert.equal(weak[0]?.domainId, 'saving');
   });
 
   test('weak domains are ordered weakest first', () => {

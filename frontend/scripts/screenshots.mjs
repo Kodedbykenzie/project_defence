@@ -39,8 +39,12 @@ const adminPages = [
     console.log('saved', p.name);
   }
 
-  // Logout + admin login
-  await page.evaluate(() => localStorage.removeItem('imari:v3:session'));
+  // Logout + admin login. The API session lives under its own key, so both
+  // have to be cleared before signing in as somebody else.
+  await page.evaluate(() => {
+    window.localStorage.removeItem('imari:v3:session');
+    window.localStorage.removeItem('imari:v3:api-session');
+  });
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
   await page.fill('input[type="email"], input[name="email"]', 'admin@imari.rw');
   await page.fill('input[type="password"]', 'demo1234');

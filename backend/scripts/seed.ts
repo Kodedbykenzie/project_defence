@@ -392,6 +392,77 @@ async function seedCredentials(
   console.log(`  ✓ credentials anchored (simulated hashes)`);
 }
 
+const ELIGIBLE_EMAIL = 'eligible@alustudent.com';
+const ELIGIBLE_SLUG = 'borrowing-wisely';
+
+/**
+ * A learner who already satisfies the competency rule for one module — every
+ * lesson done, the activity submitted, a quiz at or above the pass mark — so
+ * `POST /modules/:slug/credential` can be demonstrated end to end. The
+ * credential is deliberately left unissued here: the smoke test issues it and
+ * deletes it again, which keeps this account reusable.
+ */
+async function seedEligibleLearner(): Promise<void> {
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const { rows } = await query<{ id: string }>(
+    `insert into users (email, password_hash, provider, role, full_name, email_verified_at)
+     values ($1, $2, 'password', 'student', $3, now())
+     on conflict (email) do update
+       set full_name        = excluded.full_name,
+           password_hash    = excluded.password_hash,
+           email_verified_at = excluded.email_verified_at
+     returning id`,
+    [ELIGIBLE_EMAIL, passwordHash, 'Eligible Learner'],
+  );
+  const userId = rows[0]!.id;
+
+  await query(
+    `update student_profiles sp
+        set institution_id = (select id from institutions where lower(name) = lower($2) limit 1),
+            onboarded_at   = coalesce(sp.onboarded_at, now())
+      where sp.user_id = $1`,
+    [userId, 'African Leadership University'],
+  );
+
+  const { rows: modRows } = await query<{ id: string; passing_score: number }>(
+    `select id, passing_score from modules where slug = $1`,
+    [ELIGIBLE_SLUG],
+  );
+  const mod = modRows[0];
+  if (!mod) return;
+
+  const { rows: lessonRows } = await query<{ n: number }>(
+    `select count(*)::int as n from lessons where module_id = $1`,
+    [mod.id],
+  );
+  const lessonCount = lessonRows[0]?.n ?? 0;
+
+  // Re-seeding restores eligibility, so drop anything a previous run left.
+  await query(`delete from credentials where user_id = $1 and module_id = $2`, [userId, mod.id]);
+  await query(`delete from quiz_attempts where user_id = $1 and module_id = $2`, [userId, mod.id]);
+
+  const lessonsDone = Array.from({ length: lessonCount }, (_, i) => i);
+  await query(
+    `insert into module_progress
+       (user_id, module_id, status, lessons_done, activity_response, best_quiz_score, started_at, completed_at)
+     values ($1, $2, 'in_progress', $3::smallint[], $4, $5, now(), now())
+     on conflict (user_id, module_id) do update
+       set lessons_done      = excluded.lessons_done,
+           activity_response = excluded.activity_response,
+           best_quiz_score   = excluded.best_quiz_score,
+           completed_at      = coalesce(module_progress.completed_at, now())`,
+    [
+      userId,
+      mod.id,
+      lessonsDone,
+      'Tracked every borrowing cost for a month before taking on more credit.',
+      mod.passing_score,
+    ],
+  );
+
+  console.log(`  ✓ eligible learner (${ELIGIBLE_EMAIL} — can issue ${ELIGIBLE_SLUG})`);
+}
+
 async function main(): Promise<void> {
   console.log('Seeding imari…');
   await seedReferenceData();
@@ -400,8 +471,10 @@ async function main(): Promise<void> {
   await seedInvitesFn();
   await seedAttemptsAndProgress(userIdByEmail, slugByModuleId);
   await seedCredentials(userIdByEmail, slugByModuleId);
+  await seedEligibleLearner();
   console.log('Seed complete.');
   console.log('  student: aline@alustudent.com / ' + DEMO_PASSWORD);
+  console.log('  eligible: ' + ELIGIBLE_EMAIL + ' / ' + DEMO_PASSWORD + ' (' + ELIGIBLE_SLUG + ')');
   console.log('  admin:   admin@imari.rw / ' + DEMO_PASSWORD);
   console.log('  invite:  ALU-PILOT');
 }

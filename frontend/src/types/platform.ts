@@ -30,8 +30,21 @@ export interface Question {
   domain: DomainId;
   prompt: string;
   options: string[];
+  /**
+   * The answer index. Optional because the student-facing API never sends it —
+   * the server grades the attempt and returns the feedback instead.
+   */
+  answer?: number;
+  explanation?: string;
+}
+
+/** Per-question feedback returned after a quiz attempt has been graded. */
+export interface QuizFeedback {
+  questionId: string;
+  correct: boolean;
+  selected: number | null;
   answer: number;
-  explanation: string;
+  explanation: string | null;
 }
 
 export interface Lesson {

@@ -71,6 +71,57 @@ components:
       properties:
         outcome: { type: string, enum: [valid, revoked, mismatch, not_found] }
         credential: { $ref: '#/components/schemas/Credential' }
+    QuizResult:
+      type: object
+      properties:
+        questionId: { type: string, format: uuid }
+        correct: { type: boolean }
+        selected: { type: [integer, 'null'] }
+        answer: { type: integer }
+        explanation: { type: [string, 'null'] }
+    QuizResponse:
+      type: object
+      properties:
+        score: { type: integer }
+        passed: { type: boolean }
+        correct: { type: integer }
+        total: { type: integer }
+        passingScore: { type: integer }
+        results: { type: array, items: { $ref: '#/components/schemas/QuizResult' } }
+    Me:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string }
+            name: { type: string }
+            role: { type: string, enum: [student, admin, verifier] }
+            provider: { type: string, enum: [password, google] }
+            emailVerified: { type: boolean }
+        preferences:
+          type: object
+          properties:
+            language: { type: string, enum: [en, rw, fr] }
+            textSize: { type: string, enum: [sm, md, lg] }
+            reduceMotion: { type: boolean }
+            railOpen: { type: boolean }
+            interests: { type: array, items: { type: string } }
+            goal: { type: [string, 'null'] }
+            weeklyTime: { type: [string, 'null'] }
+            learningStyle: { type: [string, 'null'] }
+            toastsEnabled: { type: boolean }
+            mutedKinds: { type: array, items: { type: string } }
+            emailDigest: { type: string, enum: [off, daily, weekly] }
+        profile:
+          type: object
+          properties:
+            university: { type: [string, 'null'] }
+            programme: { type: [string, 'null'] }
+            researchConsent: { type: boolean }
+            consentVersion: { type: [string, 'null'] }
+            onboardedAt: { type: [string, 'null'], format: date-time }
 paths:
   /auth/invites/check:
     post:
@@ -117,6 +168,12 @@ paths:
     post: { security: [], responses: { '204': { description: Code sent if the email exists } } }
   /auth/password/reset:
     post: { security: [], responses: { '204': { description: Password updated } } }
+  /me:
+    get:
+      description: The signed-in user with their preferences and student profile.
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { description: UNAUTHORIZED }
   /me/preferences:
     get: { responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Preferences' } } } } } }
     put:
@@ -127,6 +184,18 @@ paths:
       security: []
       requestBody: { content: { application/json: { schema: { type: object, properties: { analytics: { type: boolean }, preferences: { type: boolean }, policyVersion: { type: string }, anonymousId: { type: string } } } } } }
       responses: { '201': { description: Stored } }
+  /me/dashboard:
+    get:
+      description: Dashboard aggregate in one call — progress, streak, weak domains, next module, recent activity.
+      responses: { '200': { description: '{ learner, progress, streak, weakDomains, nextModule, recentActivity, unreadNotifications }' } }
+  /me/recommendations:
+    get:
+      description: Module suggestions ordered by the latest diagnostic's weakest domains.
+      responses: { '200': { description: '{ threshold, hasDiagnostic, diagnosedAt, interests, recommendations[] }' } }
+  /me/achievements:
+    get:
+      description: Milestones, badges and streak progress for the signed-in learner.
+      responses: { '200': { description: '{ streak, counts, badges[], earned, total, lastActiveAt }' } }
   /assessment/attempts:
     post:
       requestBody:
@@ -141,13 +210,21 @@ paths:
   /modules/{slug}/quiz:
     post:
       parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
-      responses: { '200': { description: '{ score, passed }' } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [answers], properties: { answers: { type: array, items: { type: integer } } } } } } }
+      responses:
+        '200': { description: '{ score, passed, correct, total, passingScore, results } — one result per question, in order', content: { application/json: { schema: { $ref: '#/components/schemas/QuizResponse' } } } }
   /modules/{slug}/credential:
     post:
       parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
       responses:
         '201': { description: Issued (status may be pending until mined), content: { application/json: { schema: { $ref: '#/components/schemas/Credential' } } } }
         '409': { description: COMPETENCY_NOT_MET }
+  /verify:
+    get:
+      security: []
+      parameters: [{ name: q, in: query, schema: { type: string, maxLength: 80 } }]
+      description: Public lookup by holder name or partial credential id (at least 2 characters).
+      responses: { '200': { description: '{ results[] } — 10 most recent matches' } }
   /verify/{credentialId}:
     get:
       security: []
@@ -175,5 +252,38 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       requestBody: { content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [valid, revoked] }, reason: { type: string } } } } } }
       responses: { '200': { description: Updated on DB and chain } }
+  /admin/students/{id}:
+    get:
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: '{ summary, risk, progress[], credentials[], assessment, activity }' }
+        '404': { description: STUDENT_NOT_FOUND }
+  /admin/recommendations:
+    get:
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 50 } }]
+      responses: { '200': { description: '{ summary, byDomain[], recent[] } — accuracy and relevance audit' } }
+  /admin/notifications/broadcast:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                audience: { type: array, items: { type: string, enum: [student, students, admin, admins] }, default: [students] }
+                kind: { type: string, enum: [credential, invite, student, assessment, course, system], default: system }
+                title: { type: string }
+                body: { type: string }
+                link: { type: string }
+      responses: { '201': { description: '{ created, audience, kind, title }' } }
+  /admin/reports/export:
+    get:
+      parameters: [{ name: type, in: query, schema: { type: string, enum: [roster, credentials, engagement], default: roster } }]
+      responses:
+        '200': { description: CSV attachment, content: { text/csv: { schema: { type: string } } } }
+  /admin/health-check:
+    get:
+      responses: { '200': { description: '{ status, uptimeSeconds, timestamp, checks: { database, auth, chain, queue } }' } }
   /admin/metrics:
     get: { responses: { '200': { description: Knowledge gain, recommendation accuracy, credential health } } }

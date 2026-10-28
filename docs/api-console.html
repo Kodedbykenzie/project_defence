@@ -1,0 +1,2479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Imari — API Console</title>
+<style>
+  :root {
+    --bg: #eef3fb;
+    --panel: #f7f9fc;
+    --panel-2: #ffffff;
+    --panel-3: #edf3ff;
+    --border: #dfe7f3;
+    --border-2: #cfe0f5;
+    --text: #172033;
+    --muted: #475574;
+    --faint: #586782;
+    --accent: #8a5cf6;
+    --accent-2: #d946ef;
+    --accent-soft: rgba(138, 92, 246, 0.12);
+    --topbar-bg: rgba(255, 255, 255, 0.82);
+    --green: #1f9d72;
+    --blue: #3b82f6;
+    --amber: #d97706;
+    --red: #dc2626;
+    --violet-soft: #7c3aed;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  body[data-theme="dark"] {
+    --bg: #0b0e15;
+    --panel: #10141f;
+    --panel-2: #141926;
+    --panel-3: #1a2134;
+    --border: #232c42;
+    --border-2: #2e3850;
+    --text: #e9ecf5;
+    --muted: #b5bfd3;
+    --faint: #97a3bd;
+    --accent: #8a5cf6;
+    --accent-2: #d946ef;
+    --accent-soft: rgba(138, 92, 246, 0.14);
+    --topbar-bg: rgba(13, 16, 24, 0.88);
+    --green: #34d399;
+    --blue: #60a5fa;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --violet-soft: #c4b5fd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #app { height: 100%; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 13px; overflow: hidden; -webkit-font-smoothing: antialiased; transition: background-color .2s ease, color .2s ease; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(900px 500px at 85% -10%, rgba(138,92,246,0.10), transparent 60%), radial-gradient(700px 500px at -10% 110%, rgba(217,70,239,0.06), transparent 60%); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  #app { display: flex; flex-direction: column; height: 100vh; position: relative; }
+  #workspace { flex: 1; display: flex; min-height: 0; }
+
+  /* ============ TOP BAR ============ */
+  #topbar { height: 56px; flex: 0 0 56px; display: flex; align-items: center; gap: 14px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--topbar-bg); backdrop-filter: blur(8px); }
+  .brand { display: flex; align-items: center; gap: 10px; user-select: none; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; box-shadow: 0 0 18px rgba(138,92,246,0.45); }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
+  .brand-sub { font-size: 10px; color: var(--muted); letter-spacing: 1.6px; text-transform: uppercase; margin-top: 2px; }
+  .top-nav { display: flex; align-items: center; gap: 4px; }
+  .top-nav-btn { border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 8px; padding: 8px 11px; font: 600 12px var(--sans); cursor: pointer; white-space: nowrap; }
+  .top-nav-btn:hover { background: var(--panel-3); color: var(--text); }
+  .top-nav-btn.active { color: var(--text); background: var(--accent-soft); border-color: rgba(138,92,246,0.22); }
+  .top-nav-count { margin-left: 5px; font: 10px var(--mono); color: var(--faint); }
+  #topbar .spacer { flex: 1; }
+  .base-url { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 5px 8px 5px 12px; width: 380px; transition: border-color .15s, box-shadow .15s; }
+  .base-url:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .base-url svg { color: var(--faint); flex: 0 0 auto; }
+  .base-url input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 12px; min-width: 0; }
+  .env-select { background: var(--panel-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 7px; font-family: var(--mono); font-size: 11px; padding: 4px 6px; outline: none; cursor: pointer; }
+  .env-pill { display: flex; align-items: center; gap: 7px; background: var(--panel-2); border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+  .env-pill b { color: var(--text); font-weight: 600; }
+  .env-manage { padding: 4px 8px; font-size: 12px; line-height: 1; }
+  .auth-required { color: var(--faint); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; font-size: 8px; font-weight: 700; letter-spacing: .04em; }
+  .login-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(15, 23, 42, .42); backdrop-filter: blur(4px); }
+  .login-overlay[hidden] { display: none; }
+  .login-dialog { width: min(390px, 100%); background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 12px; box-shadow: 0 24px 70px rgba(15,23,42,.25); padding: 20px; }
+  .login-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .login-dialog-head h2 { font-size: 16px; }
+  .login-field { display: block; margin-top: 12px; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .login-field input { display: block; width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; outline: none; background: var(--panel); color: var(--text); font: 12px var(--mono); }
+  .login-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .login-demo { margin-top: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); font: 10px/1.6 var(--mono); }
+  .login-dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .login-status { min-height: 17px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+  .login-status.error { color: var(--red); }
+  .login-status.success { color: var(--green); }
+  #envEditor { position: fixed; top: 62px; right: 16px; width: min(430px, 92vw); background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 12px; box-shadow: 0 20px 48px rgba(0,0,0,.5); padding: 12px 13px; z-index: 90; }
+  .env-editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .env-editor-head strong { font-size: 12px; }
+  .env-editor-head .env-hint { font-size: 10.5px; color: var(--faint); margin-right: auto; }
+  .env-editor-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 24px; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .env-editor-row input { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-3); color: var(--text); font-family: var(--mono); font-size: 11px; outline: none; }
+  .env-editor-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .env-editor-row .kv-del { opacity: 1; }
+  .env-editor-row .kv-del:disabled { opacity: .3; cursor: not-allowed; }
+
+  .overview-cards {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px 10px 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .dashboard-card {
+    min-width: 0;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 58px;
+  }
+  .dashboard-card .card-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .dashboard-card .card-value {
+    font-size: 16px;
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dashboard-card .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+  .dashboard-card .trend-up { color: var(--green); }
+  .dashboard-card .trend-down { color: var(--red); }
+
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px 10px 0;
+    background: var(--panel);
+  }
+  .quick-action-card {
+    appearance: none;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 8px;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+  }
+  .quick-action-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-2);
+    box-shadow: 0 8px 18px rgba(138,92,246,0.08);
+  }
+  .quick-action-card strong {
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .quick-action-card span {
+    display: block;
+    font-size: 8px;
+    color: var(--muted);
+    font-family: var(--mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border-2); background: var(--panel-2); color: var(--text); font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 9px; cursor: pointer; transition: all .15s; }
+  .btn:hover { background: var(--panel-3); border-color: var(--border); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #7548e8); border: none; color: #fff; box-shadow: 0 4px 18px rgba(138,92,246,0.35); }
+  .btn-primary:hover { filter: brightness(1.12); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+
+  /* ============ SIDEBAR ============ */
+  #sidebar { width: 280px; flex: 0 0 280px; border-right: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  .side-head { padding: 14px 14px 10px; }
+  .side-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .side-title h2 { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); }
+  .side-title span { font-size: 10px; color: var(--faint); font-family: var(--mono); }
+  .side-search { position: relative; }
+  .side-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+  .side-search input { width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px 7px 30px; color: var(--text); font-size: 12px; outline: none; font-family: var(--sans); }
+  .side-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .method-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
+  .method-filter { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--muted); padding: 4px 6px; font: 700 9px var(--mono); cursor: pointer; }
+  .method-filter:hover { border-color: var(--border-2); color: var(--text); }
+  .method-filter.active { color: var(--text); background: var(--accent-soft); border-color: rgba(138,92,246,.35); }
+  .method-filter-count { color: var(--faint); font-size: 8px; }
+  #endpointScroll { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 8px; }
+  .history-wrap { flex: 0 0 190px; height: 190px; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); padding: 8px 8px 12px; }
+  #historyList { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .group-label { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); padding: 14px 8px 6px; }
+  .group-label:first-child { padding-top: 8px; }
+  .group-label .count { margin-left: auto; font-family: var(--mono); color: var(--faint); }
+  .endpoint { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 1px; transition: background .12s; }
+  .endpoint:hover { background: var(--panel-2); }
+  .endpoint.selected { background: var(--accent-soft); border-color: rgba(138,92,246,0.35); }
+  .endpoint.selected .ep-path { color: var(--text); }
+  .method { flex: 0 0 auto; font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px; padding: 3px 7px; border-radius: 6px; text-align: center; min-width: 44px; }
+  .m-GET { color: var(--green); background: rgba(52,211,153,0.12); }
+  .m-POST { color: var(--blue);  background: rgba(96,165,250,0.12); }
+  .m-PUT { color: var(--amber); background: rgba(251,191,36,0.12); }
+  .m-PATCH { color: #a78bfa; background: rgba(167,139,250,0.16); }
+  .m-DELETE { color: var(--red); background: rgba(248,113,113,0.12); }
+  .ep-main { flex: 1; min-width: 0; }
+  .ep-path { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ep-s { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .ep-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; opacity: 0; transition: opacity .12s; }
+  .endpoint:hover .ep-actions, .endpoint:focus-within .ep-actions { opacity: 1; }
+  .ep-action { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--faint); cursor: pointer; }
+  .ep-action:hover, .ep-action:focus-visible { background: var(--panel-3); border-color: var(--border); color: var(--text); outline: none; }
+  .ep-action.copied { color: var(--green); }
+  @media (hover: none) { .ep-actions { opacity: 1; } }
+
+  .history-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; margin-bottom: 1px; font-size: 12px; }
+  .history-row:hover { background: var(--panel-2); }
+
+  /* ============ MAIN / REQUEST ============ */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  #workspace[data-view="history"] #sidebar,
+  #workspace[data-view="history"] #main,
+  #workspace[data-view="saved"] #sidebar,
+  #workspace[data-view="saved"] #main,
+  #workspace[data-view="database"] #sidebar,
+  #workspace[data-view="database"] #main { display: none; }
+  #historyView { display: none; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+  #workspace[data-view="history"] #historyView { display: flex; }
+  #savedView, #databaseView { display: none; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+  #workspace[data-view="saved"] #savedView, #workspace[data-view="database"] #databaseView { display: flex; }
+  .history-view-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
+  .history-view-title { min-width: 0; }
+  .history-view-title h1 { font-size: 16px; font-weight: 700; }
+  .history-view-title p { margin-top: 3px; color: var(--muted); font-size: 11px; }
+  .history-view-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .history-search { width: min(300px, 30vw); padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; background: var(--panel-2); color: var(--text); font: 12px var(--sans); }
+  .history-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .history-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); }
+  .history-table-wrap { min-width: 0; min-height: 0; overflow: auto; border-right: 1px solid var(--border); }
+  .history-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+  .history-table th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: var(--panel-3); color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+  .history-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .history-table tr[data-history-id] { cursor: pointer; }
+  .history-table tr[data-history-id]:hover td { background: var(--panel-3); }
+  .history-table tr.selected td { background: var(--accent-soft); color: var(--text); }
+  .history-table .history-url { max-width: 1px; overflow: hidden; text-overflow: ellipsis; font: 11px var(--mono); color: var(--text); }
+  .history-status { font: 700 10px var(--mono); }
+  .history-details { min-width: 0; min-height: 0; overflow: auto; padding: 14px; }
+  .history-detail-empty { display: grid; height: 100%; place-items: center; color: var(--muted); text-align: center; font-size: 12px; }
+  .history-detail-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .history-detail-title h2 { min-width: 0; overflow-wrap: anywhere; font: 600 12px var(--mono); }
+  .history-detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .history-detail-meta div { padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); min-width: 0; }
+  .history-detail-meta small { display: block; margin-bottom: 4px; color: var(--faint); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+  .history-detail-meta span { display: block; overflow-wrap: anywhere; color: var(--text); font: 10px var(--mono); }
+  .history-detail-section { margin-top: 12px; }
+  .history-detail-section h3 { margin-bottom: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .history-detail-section pre { max-height: 220px; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.6 var(--mono); }
+  .history-empty-row { padding: 24px !important; text-align: center; white-space: normal !important; }
+  .saved-list { flex: 1; min-height: 0; overflow: auto; padding: 12px 18px; }
+  .saved-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .saved-row-title { font-size: 12px; font-weight: 700; }
+  .saved-row-meta { margin-top: 4px; color: var(--muted); font: 10px var(--mono); overflow-wrap: anywhere; }
+  .saved-row-actions { display: flex; gap: 6px; }
+  .response-search { width: min(230px, 28vw); padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); font: 10px var(--sans); }
+  .response-search:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .response-search-count { min-width: 40px; color: var(--faint); font: 9px var(--mono); }
+  .tree-actions { margin-left: auto; display: flex; gap: 5px; }
+  .json-entry.search-hidden, .headers-table tr.search-hidden { display: none; }
+  .json-search-match { background: rgba(253,230,138,.6); color: inherit; border-radius: 2px; }
+  body[data-theme="dark"] .json-search-match { background: rgba(180,83,9,.55); }
+  .body-validation { min-height: 16px; margin-top: 8px; color: var(--red); font-size: 10px; }
+  .database-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0,1fr); }
+  .database-section-nav { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  .database-section-tab { padding: 7px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: 600 11px var(--sans); cursor: pointer; }
+  .database-section-tab:hover, .database-section-tab.active { border-color: var(--border-2); background: var(--accent-soft); color: var(--text); }
+  .database-tables { min-height: 0; overflow: auto; padding: 10px; border-right: 1px solid var(--border); }
+  .database-sidebar-head { position: sticky; top: -10px; z-index: 2; padding: 2px 0 9px; background: var(--panel); }
+  .database-sidebar-head strong { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .database-table-search { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; outline: none; background: var(--panel-2); color: var(--text); font: 10px var(--sans); }
+  .database-table-search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .database-table-entry { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 6px; }
+  .database-table-entry:hover, .database-table-entry:focus-within, .database-table-entry.active { background: var(--accent-soft); border-color: var(--border-2); }
+  .database-table-entry[hidden] { display: none; }
+  .database-table-button { display: flex; flex: 1; min-width: 0; align-items: flex-start; gap: 7px; padding: 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; font: 11px var(--sans); cursor: pointer; }
+  .database-table-number { flex: 0 0 20px; color: var(--faint); font: 9px var(--mono); padding-top: 1px; }
+  .database-table-label { min-width: 0; }
+  .database-table-button small { display: block; margin-top: 3px; color: var(--faint); font: 9px var(--mono); }
+  .database-table-actions { display: flex; align-items: center; gap: 1px; padding-right: 3px; opacity: 0; transition: opacity .12s; }
+  .database-table-entry:hover .database-table-actions, .database-table-entry:focus-within .database-table-actions, .database-table-entry.active .database-table-actions { opacity: 1; }
+  .database-table-action { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: 700 9px var(--mono); cursor: pointer; }
+  .database-table-action:hover, .database-table-action:focus-visible { background: var(--panel-2); color: var(--text); outline: 1px solid var(--border-2); }
+  @media (hover: none) { .database-table-actions { opacity: 1; } }
+  .database-content { min-width: 0; min-height: 0; overflow: auto; padding: 14px; }
+  .database-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 12px 0; }
+  .database-controls label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+  .database-controls input, .database-controls select { max-width: 220px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); font: 11px var(--sans); }
+  .database-grid-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 7px; }
+  .database-grid { width: 100%; border-collapse: collapse; font: 10px var(--mono); }
+  .database-grid th { position: sticky; top: 0; padding: 8px; background: var(--panel-3); color: var(--muted); text-align: left; }
+  .database-grid td { max-width: 320px; padding: 8px; border-top: 1px solid var(--border); color: var(--text); overflow-wrap: anywhere; vertical-align: top; }
+  .database-notice { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--muted); font-size: 10px; line-height: 1.5; }
+  @media (max-width: 980px) {
+    .base-url { width: min(320px, 30vw); }
+    .env-pill { display: none; }
+    .top-nav { gap: 1px; }
+    .top-nav-btn { padding: 7px 8px; }
+  }
+  @media (max-width: 760px) {
+    #topbar { height: auto; min-height: 56px; flex: 0 0 auto; flex-wrap: wrap; gap: 6px; padding: 8px; }
+    .brand { order: 1; margin-right: auto; }
+    .base-url { order: 2; width: auto; flex: 1 1 230px; }
+    #topbar .spacer { display: none; }
+    #loginOpenBtn, #themeToggleBtn, #upgradeBtn { order: 3; padding: 6px 8px; font-size: 10px; }
+    .top-nav { order: 4; flex: 1 1 100%; overflow-x: auto; }
+    .top-nav-btn { flex: 0 0 auto; }
+    .overview-cards { display: flex; width: 100%; min-width: 0; overflow-x: auto; }
+    .overview-cards .dashboard-card { flex: 0 0 78px; }
+    .quick-actions { display: flex; width: 100%; min-width: 0; overflow-x: auto; }
+    .quick-actions .quick-action-card { flex: 0 0 88px; }
+    .body-form { grid-template-columns: minmax(0, 1fr); }
+    .body-field.full, .body-group { grid-column: 1; }
+    .history-view-head { align-items: flex-start; flex-direction: column; }
+    .history-view-tools { width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .history-search, .response-search { width: 100%; }
+    .history-layout { grid-template-columns: minmax(0, 1fr); }
+    .history-table-wrap { max-height: 42vh; border-right: 0; border-bottom: 1px solid var(--border); }
+    .history-details { max-height: 45vh; }
+    .database-layout { grid-template-columns: minmax(0, 1fr); }
+    .database-tables { max-height: 210px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .database-table-actions { opacity: 1; }
+    .database-content { overflow: auto; }
+    .codegen { grid-template-columns: minmax(0,1fr); }
+  }
+  #requestPanel { border-bottom: 1px solid var(--border); background: var(--panel); flex: 0 0 auto; }
+  .req-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; }
+  .method-select { appearance: none; -webkit-appearance: none; border: 1px solid var(--border-2); background: var(--panel-3); color: var(--text); font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.6px; padding: 8px 28px 8px 11px; border-radius: 8px; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f98b0' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+  .url-wrap { flex: 1; display: flex; align-items: center; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 0 6px 0 12px; transition: border-color .15s, box-shadow .15s; }
+  .url-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .url-wrap input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 10px 10px; min-width: 0; }
+  .url-actions { display: flex; align-items: center; gap: 4px; }
+  .icon-btn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; border: none; background: transparent; color: var(--faint); cursor: pointer; transition: all .12s; }
+  .icon-btn:hover { background: var(--panel-3); color: var(--text); }
+  .send-btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--accent), #7548e8); color: #fff; border: none; font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 0.2px; padding: 9px 18px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 16px rgba(138,92,246,0.35); transition: all .15s; }
+  .send-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+  .send-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+  .tabs { display: flex; align-items: center; gap: 2px; padding: 10px 16px 0; }
+  .tab { background: none; border: none; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 8px 12px 10px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .12s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab .tcount { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: 6px; }
+  .tab-body { padding: 12px 16px 16px; }
+  .panel-note { color: var(--faint); font-size: 12px; padding: 4px 0; }
+  .body-form-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .body-form-toolbar .hint { color: var(--muted); font-size: 11px; }
+  .body-mode { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+  .body-mode button { border: 0; border-radius: 5px; background: transparent; padding: 5px 9px; color: var(--muted); font: 600 10px var(--sans); cursor: pointer; }
+  .body-mode button.active { background: var(--accent-soft); color: var(--text); }
+  .body-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; max-height: 34vh; overflow: auto; padding: 1px 4px 4px 1px; }
+  .body-field { display: block; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+  .body-field.full { grid-column: 1 / -1; }
+  .body-field > label, .body-field > legend { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 700; }
+  .body-field input:not([type="checkbox"]), .body-field textarea { width: 100%; padding: 8px 9px; border: 1px solid var(--border); border-radius: 6px; outline: none; background: var(--panel); color: var(--text); font: 11px/1.5 var(--mono); }
+  .body-field textarea { min-height: 72px; resize: vertical; }
+  .body-field input:focus, .body-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .body-checkbox { display: flex !important; align-items: center; gap: 8px; min-height: 32px; margin: 0 !important; color: var(--text) !important; font-size: 11px !important; }
+  .body-checkbox input { width: 15px; height: 15px; accent-color: var(--accent); }
+  .body-group { grid-column: 1 / -1; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+  .body-group legend { padding: 0 5px; color: var(--text); font-size: 11px; font-weight: 700; }
+  .body-array-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: start; margin: 6px 0; }
+  .body-array-item .body-group { margin: 0; }
+  .body-array-item > button { padding: 6px 9px; }
+  .body-array-actions { margin-top: 8px; }
+  .body-raw[hidden], .body-form[hidden] { display: none; }
+  .codegen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 1.15fr); gap: 14px; align-items: start; }
+  .codegen-info { min-width: 0; }
+  .codegen-info h3 { margin-bottom: 6px; font-size: 13px; }
+  .codegen-info p { margin-bottom: 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+  .codegen-endpoint { padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); overflow-wrap: anywhere; font: 11px/1.6 var(--mono); }
+  .codegen-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+  .codegen-editor { min-width: 0; }
+  .codegen-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+  .codegen-toolbar label { color: var(--muted); font-size: 11px; }
+  .codegen-toolbar select { min-width: 150px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); color: var(--text); font: 11px var(--sans); }
+  #codePreview { width: 100%; min-height: 190px; resize: vertical; padding: 11px; border: 1px solid var(--border); border-radius: 8px; outline: none; background: var(--panel-2); color: var(--text); font: 11px/1.6 var(--mono); white-space: pre; }
+  #codePreview:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .kv-table { display: flex; flex-direction: column; gap: 8px; }
+  .kv-row { display: grid; grid-template-columns: 200px 1fr 32px; gap: 8px; align-items: center; }
+  .kv-row.head { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .kv-row input { background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 7px 9px; outline: none; width: 100%; }
+  .kv-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .kv-row input:disabled { opacity: 0.55; }
+  .kv-del { background: none; border: none; color: var(--faint); cursor: pointer; display: grid; place-items: center; height: 32px; border-radius: 7px; }
+  .kv-del:hover { color: var(--red); background: rgba(248,113,113,0.08); }
+
+  .code-area { width: 100%; min-height: 180px; resize: vertical; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.65; padding: 12px 14px; outline: none; display: block; }
+  .code-area:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .code-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .code-toolbar .hint { color: var(--faint); font-size: 11.5px; }
+
+  /* ============ RESPONSE ============ */
+  #responsePanel { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+  .resp-meta { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .status-pill { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; padding: 4px 10px; border-radius: 999px; min-width: 44px; text-align: center; }
+  .status-idle { color: var(--muted); background: rgba(148, 163, 184, 0.12); }
+  .status-2 { color: var(--green); background: rgba(52,211,153,0.12); }
+  .status-3 { color: var(--blue);  background: rgba(96,165,250,0.12); }
+  .status-4 { color: var(--amber); background: rgba(251,191,36,0.12); }
+  .status-5 { color: var(--red);  background: rgba(248,113,113,0.12); }
+  .resp-info { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  .resp-info .sep { color: var(--border-2); }
+  .resp-info .meta-item { min-width: 0; }
+  .resp-info .meta-item.empty,
+  .resp-info .sep.empty { display: none; }
+  .resp-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .pill-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--panel-2); }
+  .pill-toggle button { border: none; background: transparent; color: var(--muted); font-family: var(--mono); font-size: 10.5px; padding: 5px 10px; cursor: pointer; font-weight: 700; }
+  .pill-toggle button.active { background: var(--accent-soft); color: var(--text); }
+  .btn.copied { color: var(--green); border-color: rgba(52,211,153,0.4); }
+
+  .resp-tabs { display: flex; align-items: center; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+  .resp-tab { background: none; border: none; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 600; padding: 9px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .resp-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .resp-tab .rcount { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-left: 6px; }
+
+  #respBody { flex: 1; min-height: 0; overflow: auto; }
+  .resp-pre { padding: 14px 16px 20px; font-family: var(--mono); font-size: 12px; line-height: 1.7; color: var(--text); min-height: 100%; white-space: pre; }
+  .json-tree { padding: 14px 16px 20px; font: 12px/1.75 var(--mono); color: var(--text); }
+  .json-node { margin-left: 16px; }
+  .json-node.root { margin-left: 0; }
+  .json-node summary { cursor: pointer; list-style: none; }
+  .json-node summary::-webkit-details-marker { display: none; }
+  .json-node summary::before { content: "+"; display: inline-block; width: 14px; color: var(--faint); }
+  .json-node[open] > summary::before { content: "-"; }
+  .json-node .json-children { margin-left: 6px; padding-left: 10px; border-left: 1px solid var(--border); }
+  .json-entry { min-height: 21px; }
+  .json-key { color: #6941c6; }
+  body[data-theme="dark"] .json-key { color: #c4b5fd; }
+  .json-string { color: #147d52; }
+  body[data-theme="dark"] .json-string { color: #86efac; }
+  .json-number { color: #b45309; }
+  body[data-theme="dark"] .json-number { color: #fbbf24; }
+  .json-boolean { color: #be185d; }
+  body[data-theme="dark"] .json-boolean { color: #f472b6; }
+  .json-null, .json-count { color: var(--faint); }
+  .json-punctuation { color: var(--muted); }
+  .tk-k { color: #c4b5fd; } .tk-s { color: #86efac; } .tk-n { color: #fbbf24; } .tk-b { color: #f472b6; } .tk-z { color: #94a3b8; }
+  .empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--faint); gap: 12px; text-align: center; padding: 24px; }
+  .empty-state .ring { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border-2); display: grid; place-items: center; color: var(--faint); background: radial-gradient(circle at 30% 25%, rgba(138,92,246,0.14), transparent 70%); }
+  .empty-state p { font-size: 12.5px; max-width: 340px; line-height: 1.7; color: var(--muted); }
+  .empty-state p b { color: var(--text); }
+  .loading-box { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); font-size: 12.5px; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid var(--border-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .headers-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .headers-table td { padding: 7px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .headers-table tr:last-child td { border-bottom: none; }
+  .headers-table td:first-child { color: var(--violet-soft); font-weight: 700; width: 40%; }
+  .headers-table td:last-child { color: var(--text); word-break: break-all; }
+  .resp-footer { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--border); color: var(--faint); font-size: 11px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 14H4L12 2z" fill="#fff"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Imari</div>
+        <div class="brand-sub">API Console</div>
+      </div>
+    </div>
+    <nav class="top-nav" aria-label="Main navigation">
+      <button class="top-nav-btn active" type="button" data-view-tab="console">Console</button>
+      <button class="top-nav-btn" type="button" data-view-tab="history">History <span class="top-nav-count" id="historyCount">0</span></button>
+      <button class="top-nav-btn" type="button" data-view-tab="saved">Saved <span class="top-nav-count" id="savedCount">0</span></button>
+      <button class="top-nav-btn" type="button" data-view-tab="database">Database</button>
+    </nav>
+    <div class="base-url">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg>
+      <input id="baseUrlInput" value="http://localhost:4000/v1" spellcheck="false" />
+      <select id="envSelect" class="env-select"></select>
+      <button class="btn env-manage" id="envManageBtn" type="button" title="Edit environments">Envs</button>
+    </div>
+    <div class="env-pill"><b id="envLabel">local</b></div>
+    <div class="spacer"></div>
+    <button class="btn" id="loginOpenBtn" type="button">Sign in</button>
+    <button class="btn" id="themeToggleBtn" type="button" aria-label="Switch theme">Light</button>
+    <button class="btn" id="upgradeBtn" type="button">Upgrade</button>
+  </header>
+
+  <div id="envEditor" hidden>
+    <div class="env-editor-head">
+      <strong>Environments</strong>
+      <span class="env-hint">saved in this browser</span>
+      <button class="btn" id="envAddBtn" type="button" style="padding:4px 9px;font-size:11px">+ Add</button>
+      <button class="btn" id="envResetBtn" type="button" style="padding:4px 9px;font-size:11px">Reset</button>
+      <button class="btn" id="envCloseBtn" type="button">Close</button>
+    </div>
+    <div id="envRows"></div>
+    <div style="margin-top:8px;font-size:10.5px;color:var(--faint);line-height:1.6">Name and base URL, e.g. <code style="font-family:var(--mono)">http://localhost:4100/v1</code>. Health and readiness probes drop the <code style="font-family:var(--mono)">/v1</code> suffix automatically.</div>
+  </div>
+
+  <div class="login-overlay" id="loginOverlay" hidden>
+    <form class="login-dialog" id="loginForm" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <div class="login-dialog-head">
+        <h2 id="loginTitle">Sign in to Imari</h2>
+        <button class="btn" id="loginCloseBtn" type="button">Close</button>
+      </div>
+      <label class="login-field" for="loginEmail">Email
+        <input id="loginEmail" name="email" type="email" autocomplete="username" value="admin@imari.rw" required />
+      </label>
+      <label class="login-field" for="loginPassword">Password
+        <input id="loginPassword" name="password" type="password" autocomplete="current-password" value="demo1234" required />
+      </label>
+      <div class="login-demo">Demo account: admin@imari.rw / demo1234</div>
+      <div class="login-status" id="loginStatus" role="status" aria-live="polite"></div>
+      <div class="login-dialog-actions">
+        <button class="btn" id="loginSignOutBtn" type="button" hidden>Sign out</button>
+        <button class="btn btn-primary" id="loginSubmitBtn" type="submit">Sign in</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="workspace">
+    <aside id="sidebar">
+      <div class="side-head">
+        <div class="side-title"><h2>Endpoints</h2><span id="endpointCount">0</span></div>
+        <div class="side-search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="sideSearch" placeholder="Filter endpoints…" />
+        </div>
+        <div class="method-filters" id="methodFilters" role="group" aria-label="Filter endpoints by HTTP method"></div>
+      </div>
+      <div id="endpointScroll"></div>
+      <div class="history-wrap">
+        <div class="side-title"><h2>History</h2></div>
+        <div id="historyList"></div>
+      </div>
+    </aside>
+
+    <main id="main">
+      <section class="overview-cards">
+        <article class="dashboard-card">
+          <div class="card-label"><span>learners</span></div>
+          <div class="card-value">2.5k</div>
+          <div class="card-foot"><span>+8.4%</span><span class="trend-up">up</span></div>
+        </article>
+        <article class="dashboard-card">
+          <div class="card-label"><span>latency</span></div>
+          <div class="card-value">184ms</div>
+          <div class="card-foot"><span>p95</span><span class="trend-up">good</span></div>
+        </article>
+        <article class="dashboard-card">
+          <div class="card-label"><span>issues</span></div>
+          <div class="card-value">93.2%</div>
+          <div class="card-foot"><span>valid</span><span class="trend-up">ok</span></div>
+        </article>
+        <article class="dashboard-card">
+          <div class="card-label"><span>auth</span></div>
+          <div class="card-value">0.7%</div>
+          <div class="card-foot"><span>stable</span><span class="trend-down">low</span></div>
+        </article>
+        <article class="dashboard-card">
+          <div class="card-label"><span>queue</span></div>
+          <div class="card-value">11</div>
+          <div class="card-foot"><span>jobs</span><span class="trend-up">active</span></div>
+        </article>
+      </section>
+
+      <section class="quick-actions">
+        <button class="quick-action-card" data-quick="login">
+          <strong>Login</strong>
+          <span>POST /auth/login</span>
+        </button>
+        <button class="quick-action-card" data-quick="refresh">
+          <strong>Refresh</strong>
+          <span>POST /auth/refresh</span>
+        </button>
+        <button class="quick-action-card" data-quick="verify">
+          <strong>Verify</strong>
+          <span>GET /verify</span>
+        </button>
+        <button class="quick-action-card" data-quick="metrics">
+          <strong>Metrics</strong>
+          <span>GET /admin/metrics</span>
+        </button>
+        <button class="quick-action-card" data-quick="invite">
+          <strong>Invite</strong>
+          <span>POST /admin/invites</span>
+        </button>
+        <button class="quick-action-card" data-quick="dashboard">
+          <strong>Dashboard</strong>
+          <span>GET /me/dashboard</span>
+        </button>
+      </section>
+
+      <section id="requestPanel">
+        <div class="req-bar">
+          <select id="methodSelect" class="method-select">
+            <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+          </select>
+          <div class="url-wrap">
+            <input id="urlInput" spellcheck="false" placeholder="http://localhost:4000/v1/auth/login" />
+            <div class="url-actions">
+              <button class="icon-btn" id="urlCopyBtn" title="Copy full URL">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="send-btn" id="sendBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            Send
+          </button>
+        </div>
+        <div class="tabs" id="requestTabs">
+          <button class="tab active" data-tab="params">Params <span class="tcount" id="paramsCount"></span></button>
+          <button class="tab" data-tab="headers">Headers <span class="tcount" id="headersCount"></span></button>
+          <button class="tab" data-tab="body">Body <span class="tcount" id="bodyCount"></span></button>
+          <button class="tab" data-tab="code">Code</button>
+        </div>
+        <div class="tab-body" id="tabBody"></div>
+      </section>
+
+      <section id="responsePanel">
+        <div class="resp-meta">
+          <div class="status-pill status-idle" id="statusPill">Ready</div>
+          <div class="resp-info">
+            <span class="meta-item" id="statusText">Idle</span>
+            <span class="sep">·</span>
+            <span class="meta-item empty" id="respTime"></span>
+            <span class="sep empty">·</span>
+            <span class="meta-item empty" id="respSize"></span>
+          </div>
+          <div class="resp-actions">
+            <div class="pill-toggle" id="prettyToggle">
+              <button class="active" data-mode="pretty">Pretty</button>
+              <button data-mode="compact">Raw</button>
+            </div>
+            <button class="btn" id="respCopyBtn">Copy</button>
+            <button class="icon-btn" id="respResendBtn" title="Re-send">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="resp-tabs">
+          <button class="resp-tab active" data-rtab="body">Body <span class="rcount" id="bodyRcount"></span></button>
+          <button class="resp-tab" data-rtab="headers">Headers <span class="rcount" id="headersRcount"></span></button>
+          <input class="response-search" id="responseSearch" type="search" placeholder="Search response" aria-label="Search response body or headers" />
+          <span class="response-search-count" id="responseSearchCount"></span>
+          <div class="tree-actions">
+            <button class="btn" id="expandResponseBtn" type="button" title="Expand all JSON sections">Expand</button>
+            <button class="btn" id="collapseResponseBtn" type="button" title="Collapse all JSON sections">Collapse</button>
+          </div>
+        </div>
+        <div id="respBody"></div>
+        <div class="resp-footer">Imari API Console · connected to <b id="backendLabel" style="color:var(--text)">localhost:4000</b></div>
+      </section>
+    </main>
+    <section id="historyView" aria-label="Request history">
+      <header class="history-view-head">
+        <div class="history-view-title">
+          <h1>Request history</h1>
+          <p id="historySummary">0 requests recorded in this session</p>
+        </div>
+        <div class="history-view-tools">
+          <input class="history-search" id="historySearch" type="search" placeholder="Filter by method, URL, or status" aria-label="Filter request history" />
+          <button class="btn" id="exportHistoryBtn" type="button">Export JSON</button>
+          <button class="btn" id="clearHistoryBtn" type="button">Clear</button>
+        </div>
+      </header>
+      <div class="history-layout">
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead><tr><th>Method</th><th>Request URL</th><th>Status</th><th>Time</th><th>Timestamp</th></tr></thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+        <aside class="history-details" id="historyDetails">
+          <div class="history-detail-empty">Select a request to inspect its complete log.</div>
+        </aside>
+      </div>
+    </section>
+    <section id="savedView" aria-label="Saved requests">
+      <header class="history-view-head">
+        <div class="history-view-title"><h1>Saved requests</h1><p id="savedSummary">Requests saved in this browser</p></div>
+        <div class="history-view-tools">
+          <input class="history-search" id="savedSearch" type="search" placeholder="Find saved requests" aria-label="Search saved requests" />
+          <button class="btn" id="importSavedBtn" type="button">Import collection</button>
+          <button class="btn" id="exportSavedBtn" type="button">Export collection</button>
+          <input id="savedFileInput" type="file" accept="application/json,.json" hidden />
+        </div>
+      </header>
+      <div class="database-notice" style="margin:12px 18px 0">Save a request from its Code tab. Loading restores the endpoint, parameters, query, and body. Passwords and tokens are cleared for safety. Collections stay in this browser until exported.</div>
+      <div class="saved-list" id="savedList"></div>
+    </section>
+    <section id="databaseView" aria-label="Database explorer">
+      <header class="history-view-head">
+        <div class="history-view-title"><h1>Database explorer</h1><p>Browse application records with safe, read-only filters</p></div>
+      </header>
+      <nav class="database-section-nav" id="databaseSectionNav" aria-label="Database sections">
+        <button class="database-section-tab active" type="button" data-db-section="browse" aria-current="page">Browse data</button>
+        <button class="database-section-tab" type="button" data-db-section="query-guide">Query guide</button>
+        <button class="database-section-tab" type="button" data-db-section="schema">Schema</button>
+      </nav>
+      <div class="database-layout">
+        <aside class="database-tables" id="databaseTables"></aside>
+        <div class="database-content" id="databaseContent"><div class="database-notice">Sign in with an administrator account to inspect database records. This explorer is read-only and does not accept SQL statements.</div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* Environments are editable and persisted per browser: the defaults can be
+   renamed, repointed (a second backend on :4100, a LAN host, …) or extended. */
+const DEFAULT_ENVS = { local:'http://localhost:4000/v1', dev:'http://dev.imari.dev/v1', staging:'https://staging.imari.dev/v1', prod:'https://api.imari.dev/v1' };
+const ENV_STORE = 'imari:console:envs';
+let ENV_MAP = loadEnvMap();
+function loadEnvMap(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(ENV_STORE) || 'null');
+    if(raw && typeof raw === 'object' && Object.keys(raw).length) return raw;
+  } catch(e){}
+  return Object.assign({}, DEFAULT_ENVS);
+}
+function saveEnvMap(){ lsSet(ENV_STORE, JSON.stringify(ENV_MAP)); }
+const STATUS_TEXT = { 200:'OK', 201:'Created', 202:'Accepted', 204:'No Content', 400:'Bad Request', 401:'Unauthorized', 403:'Forbidden', 404:'Not Found', 409:'Conflict', 422:'Unprocessable Entity', 500:'Internal Server Error', 503:'Service Unavailable' };
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtSize(b){ if(b<1024) return b+' B'; if(b<1024*1024) return (b/1024).toFixed(1)+' kB'; return (b/1048576).toFixed(2)+' MB'; }
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch(e){ return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+const SAVED_REQUESTS_KEY = 'imari:console:saved-requests:v1';
+function loadSavedRequests(){
+  try {
+    const saved = JSON.parse(lsGet(SAVED_REQUESTS_KEY, '[]'));
+    return Array.isArray(saved) ? saved.filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.method === 'string' && typeof item.path === 'string') : [];
+  } catch(e){ return []; }
+}
+
+const QUICK_ACTIONS = {
+  login: { method:'POST', path:'/auth/login', body:{ email:'admin@imari.rw', password:'demo1234' }, autoSend:true },
+  refresh: { method:'POST', path:'/auth/refresh', body:{ refreshToken:'<captured on login>' }, autoSend:true },
+  verify: { method:'GET', path:'/verify', body:null, autoSend:true },
+  metrics: { method:'GET', path:'/admin/metrics', body:null, autoSend:true },
+  invite: { method:'POST', path:'/admin/invites', body:{ email:'carol@example.com', note:'Pilot cohort', maxUses:1, days:30, prefix:'ALU' }, autoSend:true },
+  dashboard: { method:'GET', path:'/me/dashboard', body:null, autoSend:true },
+};
+
+function applyTheme(theme){
+  const mode = theme === 'dark' ? 'dark' : 'light';
+  document.body.dataset.theme = mode;
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) {
+    btn.textContent = mode === 'dark' ? 'Dark' : 'Light';
+    btn.setAttribute('aria-label', mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+  lsSet('imari:console:theme', mode);
+}
+
+/* Per-endpoint defaults so every path parameter has a usable value out of the
+   box. Real ids are seeded values from the running backend. */
+function defaultsFor(path){
+  const d = {};
+  const tokens = [...new Set([...String(path).matchAll(/:(\w+)/g)].map(m=>m[1]))];
+  for(const t of tokens){
+    if(t === 'slug') d[t] = 'borrowing-wisely';
+    else if(t === 'index') d[t] = '0';
+    else if(t === 'credentialId') d[t] = 'IMR-4QXA-7K2P';
+    else if(t === 'id'){
+      // /admin/invites/:id expects a UUID; /admin/credentials/:id expects an IMR id.
+      d[t] = path.indexOf('/admin/credentials/') === 0 ? 'IMR-4QXA-7K2P' : '00000000-0000-4000-8000-000000000000';
+    }
+    else d[t] = 'sample_' + t;
+  }
+  return d;
+}
+function defaultQueryFor(path){
+  if(path === '/notifications') return { limit:'50', offset:'0' };
+  if(path === '/admin/events') return { limit:'50' };
+  if(path === '/verify/:credentialId') return { hash:'' };
+  if(path === '/verify') return { q:'Mozia' };
+  return {};
+}
+function finalPath(p, params){ return String(p).replace(/:(\w+)/g, function(_,k){ return (params && params[k] !== undefined && params[k] !== '') ? params[k] : ':'+k; }); }
+
+const state = {
+  selected:null, pretty:true, respTab:'body', sending:false, lastResp:null, history:[],
+  historySeq:0, selectedHistoryId:null,
+  methodFilter:'ALL',
+  savedRequests:loadSavedRequests(), responseSearch:'', databaseTables:[], selectedDatabaseTable:'', databaseSection:'browse',
+  user: (() => { try { return JSON.parse(lsGet('imari:console:user', 'null')); } catch(e){ return null; } })(),
+  baseUrl: Object.values(ENV_MAP)[0],
+  params:{}, query:{}, bodyDraft:{},  ids:{ invite:null, credential:null, student:null },
+  token: lsGet('imari:console:token',''),
+  refreshToken: lsGet('imari:console:refresh',''),
+};
+
+const ENDPOINTS = [
+  { group:'System', method:'GET', path:'/health', summary:'Liveness probe', note:'Cheap uptime heartbeat for load balancers and uptime monitors. Served at the server root, outside /v1.', auth:false, body:null, root:true },
+  { group:'System', method:'GET', path:'/ready', summary:'Readiness probe', note:'Readiness check across database and credential chain. Served at the server root, outside /v1.', auth:false, body:null, root:true },
+  { group:'Auth', method:'POST', path:'/auth/register', summary:'Create account', note:'Create a student account against an invite code. Responds 201 + token pair.', auth:false, body:{ name:'Ada Lovelace', email:'ada@example.com', password:'Str0ng!Pass', inviteCode:'ALU-PILOT', university:'African Leadership University', consent:true } },
+  { group:'Auth', method:'POST', path:'/auth/login', summary:'Password sign-in', note:'Exchange email + password for short-lived access + opaque refresh token pair. The console captures the tokens.', auth:false, body:{ email:'admin@imari.rw', password:'demo1234' } },
+  { group:'Auth', method:'POST', path:'/auth/refresh', summary:'Rotate tokens', note:'Exchange a valid opaque refresh token for a new access+refresh pair.', auth:false, body:{ refreshToken:'<captured on login>' } },
+  { group:'Auth', method:'POST', path:'/auth/logout', summary:'Revoke session', note:'Revoke the presented refresh token (logout).', auth:true, body:{ refreshToken:'<captured on login>' } },
+  { group:'Auth', method:'POST', path:'/auth/google', summary:'Google OAuth', note:'Exchange a Google ID token for Imari JWTs (new accounts also need an invite).', auth:false, body:{ idToken:'eyJhbGciOiJSUzI1NiIs...' } },
+  { group:'Auth', method:'POST', path:'/auth/password/forgot', summary:'Request reset', note:'Always 204 in production; dev mode echoes a 6-digit code.', auth:false, body:{ email:'ada@example.com' } },
+  { group:'Auth', method:'POST', path:'/auth/password/reset', summary:'Reset password', note:'6-digit code + new password. Invalidates all existing sessions.', auth:false, body:{ email:'ada@example.com', code:'482913', newPassword:'N3wStr0ng!Pass' } },
+  { group:'Auth', method:'POST', path:'/auth/invites/check', summary:'Validate invite', note:'Check whether an invite code is usable for an email address.', auth:false, body:{ code:'ALU-4F7K2', email:'ada@example.com' } },
+  { group:'Me', method:'GET', path:'/me', summary:'Current user', note:'Signed-in user with their preferences and student profile.', auth:true, body:null },
+  { group:'Me', method:'GET', path:'/me/dashboard', summary:'Learner dashboard', note:'Current progress, streaks, weak domains, next module and recent activity.', auth:true, body:null },
+  { group:'Me', method:'GET', path:'/me/recommendations', summary:'Recommended modules', note:'Generated from domain scores, preferences, and recent completion history.', auth:true, body:null },
+  { group:'Me', method:'GET', path:'/me/credentials', summary:'My credentials', note:'The signed-in learner’s own credentials.', auth:true, body:null },
+  { group:'Me', method:'GET', path:'/me/achievements', summary:'Achievements & streaks', note:'Milestones, badges, and learning streak progress for the active learner.', auth:true, body:null },
+  { group:'Me', method:'GET', path:'/me/preferences', summary:'My preferences', note:'Language, text size, interests, goal, digest settings.', auth:true, body:null },
+  { group:'Me', method:'PUT', path:'/me/preferences', summary:'Save preferences', note:'Partial update shared by Settings and onboarding.', auth:true, body:{ language:'en', textSize:'md', interests:['budgeting','saving'], goal:'Build an emergency fund', weeklyTime:'3h', learningStyle:'visual', toasts:true, emailDigest:'weekly', completedAt:'2026-10-28T00:00:00.000Z' } },
+  { group:'Me', method:'POST', path:'/me/cookie-consent', summary:'Cookie consent', note:'Record the consent choice (authenticated, or anonymousId when signed out).', auth:true, body:{ analytics:false, preferences:true, policyVersion:'2026-09' } },
+  { group:'Assessment', method:'GET', path:'/assessment/diagnostic', summary:'Load diagnostic', note:'15 active diagnostic items (answers stripped server-side).', auth:true, body:null },
+  { group:'Assessment', method:'POST', path:'/assessment/attempts', summary:'Submit attempt', note:'Score answers server-side and return recommendations. answers maps question UUID → chosen index.', auth:true, body:{ kind:'pre', answers:{ '00000000-0000-0000-0000-000000000000':0 }, durationMs:3200 } },
+  { group:'Assessment', method:'GET', path:'/assessment/attempts', summary:'Attempt history', note:'The learner past attempts and domain scores.', auth:true, body:null },
+  { group:'Assessment', method:'GET', path:'/assessment/threshold', summary:'Read threshold', note:'Current recommendation weak-domain threshold (default 60).', auth:true, body:null },
+  { group:'Modules', method:'GET', path:'/modules', summary:'Module catalogue', note:'Published modules (admins also see drafts), each with progress + credential.', auth:true, body:null },
+  { group:'Modules', method:'GET', path:'/modules/:slug', summary:'Module detail', note:'Full content: objectives, lessons, activity, resources, quiz items, progress, credential.', auth:true, body:null },
+  { group:'Modules', method:'POST', path:'/modules/:slug/lessons/:index/complete', summary:'Mark lesson complete', note:'Record a completed lesson and advance module_progress. No request body.', auth:true, body:{} },
+  { group:'Modules', method:'POST', path:'/modules/:slug/activity', summary:'Submit activity', note:'Store the practical-activity response and update progress.', auth:true, body:{ response:'Track every borrowing RWF and its cost before taking more credit.' } },
+  { group:'Modules', method:'POST', path:'/modules/:slug/quiz', summary:'Submit quiz', note:'Server-side scoring; returns per-question feedback once graded. answers is an index per quiz item.', auth:true, body:{ answers:[1,1,1] } },
+  { group:'Modules', method:'POST', path:'/modules/:slug/credential', summary:'Issue credential', note:'Issue a micro-credential when competency criteria are met. No request body.', auth:true, body:{} },
+  { group:'Modules', method:'POST', path:'/modules/:slug/feedback', summary:'Rate module', note:'Star rating (1-5) after completing a module.', auth:true, body:{ rating:4, comment:'Loved the simulator.' } },
+  { group:'Notifications', method:'GET', path:'/notifications', summary:'Notification feed', note:'Audience-aware; filtered by role & kind. Use ?limit=50&offset=0.', auth:true, body:null },
+  { group:'Notifications', method:'POST', path:'/notifications/read', summary:'Mark read', note:'Mark notifications read. An empty ids array marks everything visible to the caller.', auth:true, body:{ ids:[] } },
+  { group:'Notifications', method:'GET', path:'/notifications/unread-count', summary:'Unread badge', note:'Badge count for the UI.', auth:true, body:null },
+  { group:'Credentials', method:'GET', path:'/verify/:credentialId', summary:'Verify credential', note:'Public. Returns outcome + source (chain / db). ?hash= for presented hash.', auth:false, body:null },
+  { group:'Credentials', method:'GET', path:'/verify', summary:'Search credentials', note:'Public lookup by holder name or partial credential id (?q=). Returns the 10 most recent matches.', auth:false, body:null },
+  { group:'Admin', method:'GET', path:'/admin/credentials', summary:'Credential roster', note:'Admin list of issued credentials with revocation status.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/invites', summary:'List invites', note:'Active and expired invite codes.', auth:true, body:null },
+  { group:'Admin', method:'POST', path:'/admin/invites', summary:'Create invite', note:'Mint a new invite. Omit email for an open code; email makes it single-use.', auth:true, body:{ email:'carol@example.com', note:'Pilot cohort', maxUses:1, days:30, prefix:'ALU' } },
+  { group:'Admin', method:'PATCH', path:'/admin/invites/:id', summary:'Revoke / extend', note:'action=revoke revokes; action=extend adds days to the expiry. id is the invite UUID.', auth:true, body:{ action:'revoke', days:30 } },
+  { group:'Admin', method:'GET', path:'/admin/students', summary:'Roster', note:'Students with attempts, scores, completed modules, credentials.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/students/:id', summary:'Student detail', note:'Complete learner record with progress, risk, credential, and assessment history.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/recommendations', summary:'Recommendation audit', note:'Review generated module suggestions and recommendation quality by domain.', auth:true, body:null },
+  { group:'Admin', method:'POST', path:'/admin/notifications/broadcast', summary:'Broadcast message', note:'Send a platform announcement or reminder to targeted learners or roles.', auth:true, body:{ audience:['student'], title:'New module available', body:'A new budgeting module is live for pilot learners.' } },
+  { group:'Admin', method:'GET', path:'/admin/reports/export', summary:'Export report', note:'Download roster, credentials, or engagement data for operations and review.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/health-check', summary:'System health', note:'Database, auth, chain, and queue health indicators for admin operators.', auth:true, body:null },
+  { group:'Admin', method:'POST', path:'/admin/modules', summary:'Create module', note:'Create a module; the slug is minted by a DB trigger when omitted.', auth:true, body:{ domain:'saving', title:'Saving in Your 20s', competency:'Emergency saving', summary:'Build a buffer that survives a bad month.', minutes:10, passingScore:67, published:false, isStarter:false, objectives:['Explain an emergency fund'], lessons:[{ title:'Start small', paragraphs:['Save a fixed amount each week.'], example:'5,000 RWF weekly.' }], activity:{ title:'Pick a target', prompt:'Write down your emergency-fund target.' }, resources:[], quiz:[{ prompt:'What is an emergency fund for?', options:['Unexpected costs','Holidays'], answer:0, explanation:'It covers surprises.' }] } },
+  { group:'Admin', method:'PUT', path:'/admin/modules/:slug', summary:'Save module', note:'Full editor save (transactional replace) for an existing module.', auth:true, body:{ domain:'saving', title:'Saving in Your 20s', competency:'Emergency saving', summary:'Build a buffer that survives a bad month.', minutes:10, passingScore:67, published:true, isStarter:false, objectives:['Explain an emergency fund'], lessons:[{ title:'Start small', paragraphs:['Save a fixed amount each week.'], example:'5,000 RWF weekly.' }], activity:{ title:'Pick a target', prompt:'Write down your emergency-fund target.' }, resources:[], quiz:[{ prompt:'What is an emergency fund for?', options:['Unexpected costs','Holidays'], answer:0, explanation:'It covers surprises.' }] } },
+  { group:'Admin', method:'PUT', path:'/admin/settings/threshold', summary:'Set threshold', note:'Update the weak-domain recommendation threshold (1-100, default 60).', auth:true, body:{ threshold:60 } },
+  { group:'Admin', method:'GET', path:'/admin/settings', summary:'Read settings', note:'Current platform settings.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/metrics', summary:'Platform metrics', note:'DAU, signups 7d, credential issuance rate, avg diagnostic score.', auth:true, body:null },
+  { group:'Admin', method:'GET', path:'/admin/events', summary:'Audit log', note:'Stream of admin/security events (insert, update, delete).', auth:true, body:null },
+  { group:'Admin', method:'PATCH', path:'/admin/credentials/:id', summary:'Revoke / reinstate', note:'status=revoked|valid. Also flips the on-chain status when a chain is configured.', auth:true, body:{ status:'revoked', reason:'Demo revocation' } },
+];
+
+const GROUP_ORDER = ['System','Auth','Me','Assessment','Modules','Notifications','Credentials','Admin'];
+
+function renderSidebar(filter){
+  const scroll = document.getElementById('endpointScroll');
+  const q = (filter || '').toLowerCase();
+  const methods = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+  const counts = Object.fromEntries(methods.map((method) => [method, method === 'ALL' ? ENDPOINTS.length : ENDPOINTS.filter((endpoint) => endpoint.method === method).length]));
+  document.getElementById('methodFilters').innerHTML = methods.map((method) => {
+    const label = method === 'ALL' ? 'ALL' : method;
+    return `<button class="method-filter${state.methodFilter === method ? ' active' : ''}" type="button" data-method-filter="${method}" aria-pressed="${state.methodFilter === method}">${label}<span class="method-filter-count">${counts[method]}</span></button>`;
+  }).join('');
+  const groups = {};
+  for(const e of ENDPOINTS){
+    if(state.methodFilter !== 'ALL' && e.method !== state.methodFilter) continue;
+    if(q && !(e.method.toLowerCase().includes(q) || e.path.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q))) continue;
+    (groups[e.group] = groups[e.group] || []).push(e);
+  }
+  let html = '';
+  for(const g of GROUP_ORDER){
+    const items = groups[g]; if(!items) continue;
+    html += `<div><div class="group-label">${escapeHtml(g)}<span class="count">${items.length}</span></div>`;
+    for(const e of items){
+      const sel = state.selected && state.selected.method===e.method && state.selected.path===e.path ? ' selected' : '';
+      const authMark = e.auth ? '<span class="auth-required" title="Authentication required">AUTH</span>' : '';
+      html += `<div class="endpoint${sel}" data-method="${e.method}" data-path="${e.path}"><span class="method m-${e.method}">${e.method}</span><div class="ep-main"><div class="ep-path">${escapeHtml(e.path)}${authMark}</div><div class="ep-s">${escapeHtml(e.summary)}</div></div><div class="ep-actions">
+        <button class="ep-action" type="button" data-endpoint-action="copy-url" title="Copy full URL" aria-label="Copy ${e.method} ${escapeHtml(e.path)} URL"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+        <button class="ep-action" type="button" data-endpoint-action="code" title="View generated code" aria-label="View code for ${e.method} ${escapeHtml(e.path)}"><span style="font:700 9px var(--mono)">CLI</span></button>
+        <button class="ep-action" type="button" data-endpoint-action="run" title="Run endpoint" aria-label="Run ${e.method} ${escapeHtml(e.path)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 13 8-13 8z"/></svg></button>
+      </div></div>`;
+    }
+    html += `</div>`;
+  }
+  scroll.innerHTML = html;
+  const visibleCount = Object.values(groups).reduce((total, items) => total + items.length, 0);
+  document.getElementById('endpointCount').textContent = `${visibleCount}/${ENDPOINTS.length}`;
+}
+
+document.getElementById('methodFilters').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-method-filter]');
+  if(!button) return;
+  state.methodFilter = button.dataset.methodFilter;
+  renderSidebar(document.getElementById('sideSearch').value);
+});
+
+document.getElementById('endpointScroll').addEventListener('click', e=>{
+  const actionButton = e.target.closest('[data-endpoint-action]');
+  if(actionButton){
+    e.stopPropagation();
+    const row = actionButton.closest('.endpoint');
+    const { method, path } = row.dataset;
+    const endpoint = findEndpoint(method, path);
+    selectEndpoint(method, path);
+
+    if(actionButton.dataset.endpointAction === 'copy-url'){
+      copyText(buildUrl(endpoint));
+      actionButton.classList.add('copied');
+      setTimeout(()=>actionButton.classList.remove('copied'),1200);
+      return;
+    }
+    if(actionButton.dataset.endpointAction === 'code'){
+      setStateTab('code');
+      return;
+    }
+    if(actionButton.dataset.endpointAction === 'run'){
+      if(method !== 'GET' && !window.confirm(`Run ${method} ${path}? This request may change server data.`)) return;
+      sendRequest();
+      return;
+    }
+    return;
+  }
+  const row = e.target.closest('.endpoint');
+  if(!row) return;
+  selectEndpoint(row.dataset.method, row.dataset.path);
+});
+
+document.getElementById('sideSearch').addEventListener('input', e=>{ renderSidebar(e.target.value); });
+
+function selectEndpoint(method, path){
+  // Keep the whole catalogue entry: the body tab, the default tab and the
+  // auth hint all read from it.
+  const def = findEndpoint(method, path) || { method, path, body: null };
+  state.selected = Object.assign({}, def);
+  state.query = defaultQueryFor(path);
+  document.getElementById('methodSelect').value = method;
+  document.getElementById('urlInput').value = buildUrl(state.selected);
+  setStateTab(defaultTab(def));
+  state.lastResp = null;
+  renderResponse();
+  document.querySelectorAll('.endpoint').forEach(r=>r.classList.toggle('selected', r.dataset.method===method && r.dataset.path===path));
+}
+
+function defaultTab(ep){
+  const e = { method: ep.method, path: ep.path };
+  if(/:\w+/.test(ep.path)) return 'params';
+  if(['POST','PUT','PATCH','DELETE'].includes(ep.method) && ep.body) return 'body';
+  return 'headers';
+}
+
+function setStateTab(name){
+  state.lastTab = name;
+  document.querySelectorAll('#requestTabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.getElementById('tabBody').innerHTML = renderTabContent(name);
+  updateTabCounts();
+}
+
+function currentRequestForSnippet(){
+  const ep = state.selected;
+  const method = document.getElementById('methodSelect').value;
+  const url = document.getElementById('urlInput').value.trim() || buildUrl(ep);
+  const body = buildBody(ep, method);
+  const headers = { Accept:'application/json' };
+  if(body !== undefined) headers['Content-Type'] = 'application/json';
+  if(ep.auth) headers.Authorization = 'Bearer $IMARI_TOKEN';
+  return { ep, method, url, body: body === undefined ? undefined : JSON.parse(body), headers };
+}
+
+function refreshCodePreview(){
+  const preview = document.getElementById('codePreview');
+  if(!preview || state.lastTab !== 'code') return;
+  const language = document.getElementById('codeLanguage').value;
+  const endpoint = document.querySelector('.codegen-endpoint');
+  try {
+    preview.value = generateRequestSnippet(language);
+    document.getElementById('codeError').textContent = '';
+  } catch(err){
+    preview.value = '';
+    document.getElementById('codeError').textContent = err.message;
+  }
+  if(endpoint && state.selected){
+    endpoint.innerHTML = `${escapeHtml(document.getElementById('methodSelect').value)} ${escapeHtml(state.selected.path)}`;
+  }
+}
+
+function shellQuote(value){
+  return "'" + String(value).replace(/'/g, "'\\''") + "'";
+}
+
+function generateRequestSnippet(language){
+  const request = currentRequestForSnippet();
+  const bodyJson = request.body === undefined ? undefined : JSON.stringify(request.body, null, 2);
+
+  if(language === 'curl' || language === 'curl-x'){
+    const args = ['curl'];
+    if(language === 'curl-x' || !['GET','HEAD','POST'].includes(request.method)) args.push(`-X ${request.method}`);
+    args.push(shellQuote(request.url));
+    for(const [name, value] of Object.entries(request.headers)){
+      const header = name === 'Authorization' ? '"Authorization: Bearer $IMARI_TOKEN"' : shellQuote(`${name}: ${value}`);
+      args.push(`--header ${header}`);
+    }
+    if(bodyJson !== undefined){
+      args.push(`--data-raw ${shellQuote(bodyJson)}`);
+    }
+    return args.join(' \\\n  ');
+  }
+
+  if(language === 'httpie'){
+    const headers = Object.entries(request.headers).map(([name, value]) => name === 'Authorization'
+      ? 'Authorization:"Bearer $IMARI_TOKEN"'
+      : shellQuote(`${name}:${value}`));
+    const body = bodyJson === undefined ? '' : ` \\\n  --raw ${shellQuote(bodyJson)}`;
+    return `http ${request.method} ${shellQuote(request.url)} \\\n  ${headers.join(' \\\n  ')}${body}`;
+  }
+
+  if(language === 'python'){
+    const headers = Object.entries(request.headers).filter(([name]) => name !== 'Authorization')
+      .map(([name, value]) => `    ${JSON.stringify(name)}: ${JSON.stringify(value)},`);
+    if(request.ep.auth) headers.push('    "Authorization": f"Bearer {os.environ.get(\'IMARI_TOKEN\', \'\')}",');
+    const body = bodyJson === undefined ? '' : `\n    json=json.loads(${JSON.stringify(JSON.stringify(request.body))}),`;
+    return `import json\nimport os\nimport requests\n\nresponse = requests.request(\n    ${JSON.stringify(request.method)},\n    ${JSON.stringify(request.url)},\n    headers={\n${headers.join('\n')}\n    },${body}\n)\nprint(response.status_code)\nprint(response.text)`;
+  }
+
+  const headers = Object.fromEntries(Object.entries(request.headers).filter(([name]) => name !== 'Authorization'));
+  const authLine = request.ep.auth ? `\nif (process.env.IMARI_TOKEN) headers.Authorization = \`Bearer \${process.env.IMARI_TOKEN}\`;` : '';
+  const bodyLine = bodyJson === undefined ? '' : `\n  body: JSON.stringify(${JSON.stringify(request.body)}),`;
+  return `const url = ${JSON.stringify(request.url)};\nconst headers = ${JSON.stringify(headers, null, 2)};${authLine}\n\nconst response = await fetch(url, {\n  method: ${JSON.stringify(request.method)},\n  headers,${bodyLine}\n});\nconsole.log(response.status, await response.text());`;
+}
+
+function renderCodeTab(){
+  if(!state.selected) return `<div class="panel-note">Select an endpoint to generate a request.</div>`;
+  const ep = state.selected;
+  let snippet;
+  let error = '';
+  try { snippet = generateRequestSnippet(document.getElementById('codeLanguage')?.value || 'curl'); }
+  catch(err){ snippet = ''; error = err.message; }
+  const summary = escapeHtml(ep.summary || 'API endpoint');
+  const note = escapeHtml(ep.note || '');
+  const route = `${escapeHtml(document.getElementById('methodSelect').value)} ${escapeHtml(ep.path)}`;
+  const url = escapeHtml(document.getElementById('urlInput').value);
+  return `<div class="codegen">
+    <div class="codegen-info">
+      <h3>${summary}</h3>
+      <p>${note}</p>
+      <div class="codegen-endpoint">${route}<br>${url}</div>
+      <div class="codegen-actions">
+        <button class="btn" type="button" id="saveRequestBtn">Save request</button>
+        <button class="btn" type="button" data-code-copy="endpoint">Copy endpoint</button>
+        <button class="btn" type="button" data-code-copy="url">Copy URL</button>
+        <button class="btn btn-primary" type="button" id="runCodeRequestBtn">Run in Console</button>
+      </div>
+      <p style="margin-top:9px">Auth examples read <code>IMARI_TOKEN</code> from your environment; the token is not embedded in copied code.</p>
+    </div>
+    <div class="codegen-editor">
+      <div class="codegen-toolbar">
+        <label for="codeLanguage">Request format</label>
+        <select id="codeLanguage">
+          <option value="curl">cURL</option>
+          <option value="curl-x">cURL with -X</option>
+          <option value="httpie">HTTPie</option>
+          <option value="python">Python Requests</option>
+          <option value="fetch">JavaScript fetch</option>
+        </select>
+        <button class="btn" type="button" id="copyCodeBtn">Copy code</button>
+      </div>
+      <textarea id="codePreview" aria-label="Generated request code" spellcheck="false" readonly>${escapeHtml(snippet)}</textarea>
+      <div class="panel-note" id="codeError">${escapeHtml(error)}</div>
+    </div>
+  </div>`;
+}
+
+function renderTabContent(name){
+  const ep = state.selected;
+  if(!ep) return `<div class="panel-note">Select an endpoint from the sidebar to begin.</div>`;
+
+  if(name==='code') return renderCodeTab();
+
+  if(name==='params'){
+    const tokens = [...new Set([...ep.path.matchAll(/:(\w+)/g)].map(m=>m[1]))];
+    const defaults = Object.assign(defaultsFor(ep.path), scopedParams(ep.path));
+    let rows = '';
+    for(const t of tokens){
+      const val = state.params[t] !== undefined ? state.params[t] : defaults[t];
+      rows += `<div class="kv-row"><input value=":${escapeHtml(t)}" disabled style="opacity:.55" /><input value="${escapeHtml(val)}" data-param="${escapeHtml(t)}" placeholder="value for :${escapeHtml(t)}" /><button class="kv-del" data-param="${escapeHtml(t)}" title="Reset">×</button></div>`;
+    }
+    const pathBlock = tokens.length
+      ? `<div style="font-size:10.5px;color:var(--faint);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:2px">Path parameters</div><div class="kv-table">${rows}</div>`
+      : `<div class="panel-note">No path parameters on this endpoint.</div>`;
+
+    if(Object.keys(state.query).length === 0) Object.assign(state.query, defaultQueryFor(ep.path));
+    let qrows = '';
+    for(const [k,v] of Object.entries(state.query)){
+      qrows += `<div class="kv-row"><input value="${escapeHtml(k)}" data-qkey="${escapeHtml(k)}" placeholder="name" /><input value="${escapeHtml(v)}" data-qval="${escapeHtml(k)}" placeholder="value" /><button class="kv-del" data-qdel="${escapeHtml(k)}" title="Remove">×</button></div>`;
+    }
+    const queryBlock = `<div style="font-size:10.5px;color:var(--faint);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin:14px 0 2px">Query string</div>
+      <div class="kv-table">${qrows || '<div class="panel-note" style="padding:0">None. Add one below.</div>'}</div>
+      <button class="btn" id="addQueryBtn" style="margin-top:8px;padding:5px 10px;font-size:11px">+ Add query param</button>`;
+
+    return pathBlock + queryBlock;
+  }
+
+  if(name==='headers'){
+    const has = Boolean(state.token);
+    return `<div class="kv-table"><div class="kv-row head"><span>Key</span><span>Value</span><span></span></div>
+      <div class="kv-row"><input value="Content-Type" disabled style="opacity:.55" /><input value="application/json" disabled style="opacity:.55" /></div>
+      <div class="kv-row"><input value="Accept" disabled style="opacity:.55" /><input value="application/json" disabled style="opacity:.55" /></div>
+      <div class="kv-row"><input value="Authorization" disabled style="opacity:.55" /><input id="authTokenInput" value="${escapeHtml(state.token)}" placeholder="Bearer token (auto-filled after login)" /></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <span style="font-size:11px;color:${has ? 'var(--green)' : 'var(--faint)'}">${has ? 'Token set — sent as Authorization: Bearer' : 'No token — protected routes answer 401'}</span>
+        ${has ? '<button class="btn" id="clearTokenBtn" style="padding:3px 9px;font-size:11px">Clear</button>' : ''}
+      </div>
+    </div>`;
+  }
+
+  if(name==='body'){
+    let pre = state.bodyDraft[ep.path];
+    if(pre === undefined && (ep.path === '/auth/refresh' || ep.path === '/auth/logout')) pre = JSON.stringify({ refreshToken: state.refreshToken || '' }, null, 2);
+    if(pre === undefined) pre = JSON.stringify(ep.body || {}, null, 2);
+    let bodyValue;
+    try { bodyValue = JSON.parse(pre); }
+    catch(e){ bodyValue = {}; }
+    const esc = String(pre).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'&#10;');
+    return `<div class="body-form-toolbar">
+        <span class="hint">Fill in the request fields. Your changes are included when you send.</span>
+        <div class="body-mode" role="group" aria-label="Request body editor mode">
+          <button type="button" class="active" data-body-mode="form">Form</button>
+          <button type="button" data-body-mode="json">Edit JSON</button>
+        </div>
+      </div>
+      <div class="body-validation" id="bodyValidation" role="status" aria-live="polite"></div>
+      <div class="body-form" id="bodyFormFields">${renderBodyFields(bodyValue, [])}</div>
+      <div class="body-raw" id="bodyRawEditor" hidden>
+        <div class="code-toolbar"><span class="hint">Advanced JSON editor</span><button class="btn" id="formatBtn" type="button" style="padding:4px 10px;font-size:11px">Format JSON</button></div>
+        <textarea class="code-area" id="bodyArea" spellcheck="false">${esc}</textarea>
+      </div>`;
+  }
+  return '';
+}
+
+function bodyPathAttr(path){ return encodeURIComponent(JSON.stringify(path)); }
+function bodyLabel(value){
+  if(/^\d+$/.test(String(value))) return `Item ${Number(value) + 1}`;
+  return String(value).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+}
+function renderBodyFields(value, path){
+  if(Array.isArray(value)){
+    const childPath = bodyPathAttr(path);
+    const rows = value.map((item, index) => {
+      const itemPath = [...path, index];
+      const rendered = item !== null && typeof item === 'object'
+        ? renderBodyFields(item, itemPath)
+        : renderBodyScalar(item, itemPath, `${bodyLabel(path[path.length - 1] || 'Item')} ${index + 1}`);
+      return `<div class="body-array-item">${rendered}<button class="btn" type="button" data-body-remove="${bodyPathAttr(path)}" data-body-index="${index}" aria-label="Remove item ${index + 1}">Remove</button></div>`;
+    }).join('');
+    return `<fieldset class="body-group"><legend>${escapeHtml(bodyLabel(path[path.length - 1] || 'Items'))} <span class="json-count">${value.length}</span></legend>
+      ${rows || '<div class="panel-note">No items added.</div>'}
+      <div class="body-array-actions"><button class="btn" type="button" data-body-add="${childPath}">Add item</button></div>
+    </fieldset>`;
+  }
+  if(value !== null && typeof value === 'object'){
+    const entries = Object.entries(value);
+    if(!path.length) return entries.map(([key, item]) => renderBodyFields(item, [key])).join('');
+    return `<fieldset class="body-group"><legend>${escapeHtml(bodyLabel(path[path.length - 1]))}</legend><div class="body-form">${entries.map(([key, item]) => renderBodyFields(item, [...path, key])).join('') || '<span class="panel-note">No fields in this object. Add properties in Edit JSON.</span>'}</div></fieldset>`;
+  }
+  return renderBodyScalar(value, path, bodyLabel(path[path.length - 1]));
+}
+function renderBodyScalar(value, path, label){
+  const attr = bodyPathAttr(path);
+  const full = typeof value === 'string' && value.length > 90;
+  if(typeof value === 'boolean'){
+    return `<div class="body-field"><label class="body-checkbox"><input type="checkbox" data-body-path="${attr}"${value ? ' checked' : ''} /><span>${escapeHtml(label)}</span></label></div>`;
+  }
+  if(full){
+    return `<div class="body-field full"><label>${escapeHtml(label)}</label><textarea data-body-path="${attr}" data-body-type="string">${escapeHtml(value)}</textarea></div>`;
+  }
+  const fieldKey = String(path[path.length - 1]);
+  const type = typeof value === 'number' ? 'number' : /password|secret|token/i.test(fieldKey) ? 'password' : /email/i.test(fieldKey) ? 'email' : /url/i.test(fieldKey) ? 'url' : 'text';
+  const valueAttr = value === null ? '' : ` value="${escapeHtml(value)}"`;
+  const placeholder = value === null || value === '' ? ` placeholder="Enter ${escapeHtml(label.toLowerCase())}"` : '';
+  return `<div class="body-field"><label>${escapeHtml(label)}</label><input type="${type}" data-body-path="${attr}" data-body-type="${typeof value}"${valueAttr}${placeholder} /></div>`;
+}
+
+function readBodyDraft(){
+  const raw = state.bodyDraft[state.selected.path];
+  if(raw !== undefined){
+    try { return JSON.parse(raw); } catch(e){}
+  }
+  if(state.selected.path === '/auth/refresh' || state.selected.path === '/auth/logout') return { refreshToken: state.refreshToken || '' };
+  return state.selected.body || {};
+}
+function writeBodyPath(path, value){
+  const body = readBodyDraft();
+  let target = body;
+  for(const key of path.slice(0, -1)) target = target[key];
+  target[path[path.length - 1]] = value;
+  state.bodyDraft[state.selected.path] = JSON.stringify(body, null, 2);
+  const area = document.getElementById('bodyArea');
+  if(area) area.value = state.bodyDraft[state.selected.path];
+  refreshCodePreview();
+}
+function updateBodyArray(path, operation, index){
+  const body = readBodyDraft();
+  let items = body;
+  for(const key of path) items = items[key];
+  if(!Array.isArray(items)) return;
+  if(operation === 'remove') items.splice(index, 1);
+  if(operation === 'add'){
+    const example = items.length ? items[items.length - 1] : null;
+    if(example !== null && typeof example === 'object') items.push(JSON.parse(JSON.stringify(example)));
+    else if(typeof example === 'number') items.push(0);
+    else if(typeof example === 'boolean') items.push(false);
+    else if(path[path.length - 1] === 'resources') items.push({ title:'', source:'', url:'' });
+    else items.push('');
+  }
+  state.bodyDraft[state.selected.path] = JSON.stringify(body, null, 2);
+  setStateTab('body');
+  refreshCodePreview();
+}
+
+function updateTabCounts(){
+  const ep = state.selected; if(!ep) return;
+  const tokens = [...new Set([...ep.path.matchAll(/:(\w+)/g)].map(m=>m[1]))];
+  const c1 = document.getElementById('paramsCount'); if(c1) c1.textContent = tokens.length;
+  const c2 = document.getElementById('headersCount'); if(c2) c2.textContent = 3;
+  const c3 = document.getElementById('bodyCount'); if(c3) c3.textContent = ep.body ? 1 : 0;
+}
+
+document.getElementById('requestTabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  setStateTab(t.dataset.tab);
+});
+document.addEventListener('click', e=>{
+  const b = e.target.closest('#formatBtn'); if(!b) return;
+  const ta = document.getElementById('bodyArea');
+  try {
+    ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
+    if(state.selected) state.bodyDraft[state.selected.path] = ta.value;
+  } catch(err){ alert('Invalid JSON: ' + err.message); }
+});
+
+/* ---------------- Response ---------------- */
+function renderResponse(){
+  const statusPill = document.getElementById('statusPill');
+  const statusText = document.getElementById('statusText');
+  const respTime = document.getElementById('respTime');
+  const respSize = document.getElementById('respSize');
+  const respBody = document.getElementById('respBody');
+  const sepEls = document.querySelectorAll('.resp-info .sep');
+
+  function syncMetaState(){
+    const hasTime = !!respTime.textContent.trim();
+    const hasSize = !!respSize.textContent.trim();
+    respTime.classList.toggle('empty', !hasTime);
+    respSize.classList.toggle('empty', !hasSize);
+    sepEls.forEach((el) => el.classList.toggle('empty', !(hasTime || hasSize)));
+  }
+
+  const ep = state.selected;
+  if(!ep){
+    statusPill.className = 'status-pill status-idle';
+    statusPill.textContent = 'Ready';
+    statusText.textContent = 'Idle';
+    respTime.textContent = '';
+    respSize.textContent = '';
+    syncMetaState();
+    respBody.innerHTML = emptyState();
+    return;
+  }
+  if(state.sending && !state.lastResp){
+    statusPill.className = 'status-pill status-idle';
+    statusPill.textContent='…';
+    statusText.textContent='Sending…';
+    respTime.textContent='';
+    respSize.textContent='';
+    syncMetaState();
+    respBody.innerHTML = `<div class="loading-box"><div class="spinner"></div><div>Awaiting <span style="font-family:var(--mono)">Imari API</span>…</div></div>`;
+    return;
+  }
+  if(!state.lastResp){
+    statusPill.className = 'status-pill status-idle';
+    statusPill.textContent='Ready';
+    statusText.textContent='Idle';
+    respTime.textContent='';
+    respSize.textContent='';
+    syncMetaState();
+    respBody.innerHTML = emptyState();
+    document.querySelectorAll('.resp-tab').forEach(t=>t.classList.toggle('active', t.dataset.rtab==='body'));
+    return;
+  }
+  const status = state.lastResp.status;
+  const body = state.lastResp.body;
+  const bodyText = (status===204 || body===null) ? '' : JSON.stringify(body, null, state.pretty ? 2 : 0);
+  const bytes = new Blob([bodyText]).size;
+  const cls = status>=500?'status-5':status>=400?'status-4':status>=300?'status-3':'status-2';
+  statusPill.className = 'status-pill ' + cls;
+  statusPill.textContent = status;
+  statusText.textContent = STATUS_TEXT[status] || (status===0 ? 'Network Error' : 'Unknown Status');
+  respTime.textContent = state.lastResp.time + ' ms';
+  respSize.textContent = fmtSize(bytes);
+  syncMetaState();
+  const headerCount = document.getElementById('headersRcount');
+  if(headerCount) headerCount.textContent = state.lastResp.headers.length || '';
+  const bodyCount = document.getElementById('bodyRcount');
+  if(bodyCount) bodyCount.textContent = body && typeof body === 'object' ? Object.keys(body).length : '';
+  document.querySelectorAll('.resp-tab').forEach(t=>t.classList.toggle('active', t.dataset.rtab===state.respTab));
+  if(state.respTab==='body'){
+    if(!bodyText){
+      respBody.innerHTML = `<div class="panel-note" style="padding:16px">Empty response body.</div>`;
+    } else if(state.pretty && body !== null && typeof body === 'object'){
+      respBody.innerHTML = `<div class="json-tree">${renderJsonTree(body, true)}</div>`;
+    } else {
+      respBody.innerHTML = `<pre class="resp-pre" id="respPre">${highlightJson(bodyText)}</pre>`;
+    }
+  } else {
+    let h = '';
+    for(const [k,v] of state.lastResp.headers){
+      h += `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`;
+    }
+    respBody.innerHTML = h
+      ? `<table class="headers-table"><tbody>${h}</tbody></table>`
+      : `<div class="panel-note" style="padding:16px">No response headers were returned.</div>`;
+  }
+  applyResponseSearch();
+}
+
+function applyResponseSearch(){
+  const query = state.responseSearch;
+  const body = document.getElementById('respBody');
+  const counter = document.getElementById('responseSearchCount');
+  let matches = 0;
+  const rows = [...body.querySelectorAll('.headers-table tr')];
+  if(rows.length){
+    rows.forEach((row) => {
+      const matched = !query || row.textContent.toLowerCase().includes(query);
+      row.classList.toggle('search-hidden', !matched);
+      if(matched && query) matches++;
+    });
+  }
+  const entries = [...body.querySelectorAll('.json-entry')];
+  if(entries.length){
+    for(const entry of entries.reverse()){
+      const ownMatch = !query || entry.textContent.toLowerCase().includes(query);
+      const descendantMatch = [...entry.querySelectorAll(':scope > details > .json-children > .json-entry')].some((child) => !child.classList.contains('search-hidden'));
+      const visible = !query || ownMatch || descendantMatch;
+      entry.classList.toggle('search-hidden', !visible);
+      if(query && ownMatch && !descendantMatch) matches++;
+    }
+  }
+  const pre = body.querySelector('.resp-pre');
+  if(pre && query){
+    const text = state.lastResp?.body == null ? '' : JSON.stringify(state.lastResp.body, null, state.pretty ? 2 : 0);
+    const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const found = text.match(regex) || [];
+    matches = found.length;
+    const escaped = escapeHtml(text);
+    pre.innerHTML = escaped.replace(regex, (match) => `<mark class="json-search-match">${match}</mark>`);
+  } else if(pre && !query && state.lastResp?.body != null){
+    const text = JSON.stringify(state.lastResp.body, null, state.pretty ? 2 : 0);
+    pre.innerHTML = highlightJson(text);
+  }
+  if(query && entries.length){
+    entries.forEach((entry) => {
+      if(entry.classList.contains('search-hidden')) return;
+      let parent = entry.parentElement.closest('details.json-node');
+      while(parent){
+        parent.open = true;
+        parent = parent.parentElement.closest('details.json-node');
+      }
+    });
+  }
+  counter.textContent = query ? `${matches} match${matches === 1 ? '' : 'es'}` : '';
+}
+
+function renderJsonTree(value, root=false){
+  if(value !== null && typeof value === 'object'){
+    const isArray = Array.isArray(value);
+    const entries = isArray ? value.map((item, index) => [index, item]) : Object.entries(value);
+    const open = isArray ? '[' : '{';
+    const close = isArray ? ']' : '}';
+    const label = isArray ? `${entries.length} items` : `${entries.length} keys`;
+    const children = entries.map(([key, item]) => {
+      const keyMarkup = isArray ? '' : `<span class="json-key">${escapeHtml(JSON.stringify(key))}</span><span class="json-punctuation">: </span>`;
+      return `<div class="json-entry">${keyMarkup}${renderJsonTree(item)}</div>`;
+    }).join('');
+    return `<details class="json-node${root ? ' root' : ''}" open><summary><span class="json-punctuation">${open}</span> <span class="json-count">${label}</span></summary><div class="json-children">${children}</div><div class="json-punctuation">${close}</div></details>`;
+  }
+  if(typeof value === 'string') return `<span class="json-string">${escapeHtml(JSON.stringify(value))}</span>`;
+  if(typeof value === 'number') return `<span class="json-number">${String(value)}</span>`;
+  if(typeof value === 'boolean') return `<span class="json-boolean">${String(value)}</span>`;
+  return `<span class="json-null">null</span>`;
+}
+
+function emptyState(){ return `<div class="empty-state"><div class="ring"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></div><p>Select an endpoint from the sidebar and press <b style="color:var(--text)">Send</b>.<br/>Responses render here with syntax highlighting, timings and one-click copy.</p></div>`; }
+
+function highlightJson(text){
+  const esc = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'&#10;');
+  const re = /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g;
+  let out = '', last = 0, m;
+  while((m = re.exec(esc))){
+    out += esc.slice(last, m.index);
+    if(m[1] !== undefined){ out += `<span class="tk-${m[2] !== undefined ? 'k' : 's'}">${m[0]}</span>`; }
+    else if(m[3] !== undefined){ out += `<span class="tk-b">${m[0]}</span>`; }
+    else if(m[0] === 'null'){ out += `<span class="tk-z">null</span>`; }
+    else { out += `<span class="tk-n">${m[0]}</span>`; }
+    last = m.index + m[0].length;
+  }
+  out += esc.slice(last);
+  return out;
+}
+
+/* ---------------- Send (real backend) ---------------- */
+
+/** Build the absolute URL: base + interpolated path + query string. */
+/** The API root — /health and /ready live outside the /v1 prefix. */
+function rootBase(){ return String(state.baseUrl).replace(/\/v1\/?$/,'').replace(/\/+$/,''); }
+function baseFor(ep){ return ep && ep.root ? rootBase() : String(state.baseUrl).replace(/\/+$/,''); }
+function findEndpoint(method, path){ return ENDPOINTS.find(e => e.method === method && e.path === path); }
+
+function buildUrl(ep){
+  const base = baseFor(ep);
+  // Untouched path parameters fall back to their seeded sample value, so Send
+  // never ships a literal ":slug" to the server.
+  const path = finalPath(ep.path, Object.assign(defaultsFor(ep.path), scopedParams(ep.path), state.params));
+  const qs = Object.entries(state.query)
+    .filter(([k,v]) => k && v !== '' && v !== undefined)
+    .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+    .join('&');
+  return base + path + (qs ? '?' + qs : '');
+}
+
+/** Mirror the current params + query into the address bar. */
+function syncUrl(){
+  const el = document.getElementById('urlInput');
+  if(el && state.selected) el.value = buildUrl(state.selected);
+  refreshCodePreview();
+}
+
+/** Read the Body tab. Returns undefined when the endpoint has no payload. */
+function buildBody(ep, method){
+  if(!['POST','PUT','PATCH','DELETE'].includes(method)) return undefined;
+  const ta = document.getElementById('bodyArea');
+  const raw = ta ? ta.value : (state.bodyDraft[ep.path] !== undefined ? state.bodyDraft[ep.path] : (ep.body ? JSON.stringify(ep.body) : ''));
+  const trimmed = String(raw).trim();
+  if(!trimmed) return undefined;
+  try { return JSON.stringify(JSON.parse(trimmed)); }
+  catch(e){ throw new Error('Body is not valid JSON — ' + e.message); }
+}
+
+/** Keep session + entity ids the backend just returned, so the next call works. */
+function captureFrom(ep, body){
+  if(!body || typeof body !== 'object') return;
+  if(body.user && typeof body.user === 'object'){
+    state.user = {
+      name: String(body.user.name || body.user.fullName || ''),
+      email: String(body.user.email || ''),
+      role: String(body.user.role || 'student'),
+    };
+    lsSet('imari:console:user', JSON.stringify(state.user));
+    updateAuthUi();
+  }
+  if(typeof body.accessToken === 'string' && body.accessToken){
+    state.token = body.accessToken;
+    lsSet('imari:console:token', state.token);
+    updateAuthUi();
+  }
+  if(typeof body.refreshToken === 'string' && body.refreshToken){
+    state.refreshToken = body.refreshToken;
+    lsSet('imari:console:refresh', state.refreshToken);
+  }
+  // Entity ids live in their own slots: /admin/invites/:id takes a UUID while
+  // /admin/credentials/:id takes an IMR id, so one must not clobber the other.
+  if(ep.path === '/admin/invites' && ep.method === 'POST' && body.id){ state.ids.invite = body.id; }
+  if(ep.path === '/admin/invites' && ep.method === 'GET' && Array.isArray(body) && body[0] && body[0].id){ state.ids.invite = body[0].id; }
+  if(ep.path === '/admin/credentials' && Array.isArray(body) && body[0] && body[0].id){ state.ids.credential = body[0].id; }
+  if(ep.path === '/admin/students' && Array.isArray(body) && body[0] && body[0].id){ state.ids.student = body[0].id; }
+  if(ep.path === '/modules/:slug/credential' && body.id){ state.ids.credential = body.id; }
+  // first module slug from the catalogue
+  if(ep.path === '/modules' && Array.isArray(body) && body[0] && body[0].slug){ state.params.slug = body[0].slug; }
+}
+
+/** Captured ids that belong to one path parameter of one endpoint. */
+function scopedParams(path){
+  if(path === '/admin/invites/:id' && state.ids.invite) return { id: state.ids.invite };
+  if(path === '/admin/credentials/:id' && state.ids.credential) return { id: state.ids.credential };
+  if(path === '/verify/:credentialId' && state.ids.credential) return { credentialId: state.ids.credential };
+  if(path === '/admin/students/:id' && state.ids.student) return { id: state.ids.student };
+  return {};
+}
+
+function redactLogValue(value){
+  if(Array.isArray(value)) return value.map(redactLogValue);
+  if(value && typeof value === 'object'){
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      /(password|token|secret|authorization|(^|_)code$)/i.test(key) ? '[REDACTED]' : redactLogValue(item)
+    ]));
+  }
+  return value;
+}
+
+function recordHistory(entry){
+  const record = { id: ++state.historySeq, timestamp: new Date().toISOString(), ...entry };
+  state.history.unshift(record);
+  state.selectedHistoryId = record.id;
+}
+
+function sanitizeLogUrl(value){
+  try {
+    const url = new URL(value, window.location.href);
+    for(const key of [...url.searchParams.keys()]){
+      if(/(password|token|secret|authorization|(^|_)code$)/i.test(key)) url.searchParams.set(key, '[REDACTED]');
+    }
+    return url.toString();
+  } catch(e){ return value; }
+}
+
+function sanitizeLogHeaders(headers){
+  return headers.map(([name, value]) => [
+    name,
+    /(authorization|cookie|token|secret|api[-_]key)/i.test(name) ? '[REDACTED]' : value
+  ]);
+}
+
+function sendRequest(onComplete){
+  const ep = state.selected; if(!ep) return;
+  const method = document.getElementById('methodSelect').value;
+
+  const validation = document.getElementById('bodyValidation');
+  const formFields = document.querySelectorAll('#bodyFormFields input, #bodyFormFields textarea');
+  const invalidField = [...formFields].find((field) => !field.validity.valid || (field.type === 'number' && field.value === ''));
+  if(invalidField){
+    if(validation) validation.textContent = `Check the ${invalidField.closest('.body-field')?.querySelector('label')?.textContent || 'highlighted'} field.`;
+    invalidField.reportValidity();
+    invalidField.focus();
+    return;
+  }
+  if(validation) validation.textContent = '';
+
+  let payload;
+  try { payload = buildBody(ep, method); }
+  catch(err){
+    state.lastResp = { status: 0, body: { code:'INVALID_JSON', message: err.message }, time: 0, size: 0, headers: [] };
+    state.respTab = 'body';
+    renderResponse();
+    if(typeof onComplete === 'function') onComplete(state.lastResp);
+    return;
+  }
+
+  state.sending = true; state.lastResp = null;
+  document.getElementById('sendBtn').disabled = true;
+  renderResponse();
+
+  // The address bar is authoritative: it is kept in sync with the Params tab,
+  // but a hand-edited URL is honoured verbatim.
+  const urlField = document.getElementById('urlInput');
+  const finalUrl = urlField.value.trim() || buildUrl(ep);
+  urlField.value = finalUrl;
+
+  const headers = { 'Accept':'application/json' };
+  if(payload !== undefined) headers['Content-Type'] = 'application/json';
+  if(state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  const requestHeaders = Object.entries(headers).map(([name, value]) => [
+    name,
+    /^authorization$/i.test(name) ? 'Bearer [REDACTED]' : value
+  ]);
+  let requestBody = null;
+  if(payload !== undefined){
+    try { requestBody = redactLogValue(JSON.parse(payload)); }
+    catch(e){ requestBody = payload; }
+  }
+
+  const t0 = performance.now();
+  fetch(finalUrl, { method, headers, body: payload })
+    .then(async res => {
+      const time = Math.round(performance.now() - t0);
+      const text = await res.text();
+      let parsed = null;
+      if(text){ try { parsed = JSON.parse(text); } catch(e){ parsed = text; } }
+      const pairs = [];
+      res.headers.forEach((v,k) => pairs.push([k,v]));
+      state.lastResp = { status: res.status, body: parsed, time, size: new Blob([text]).size, headers: pairs };
+      captureFrom(ep, parsed);
+      recordHistory({ method, path: ep.path, url: sanitizeLogUrl(finalUrl), status: res.status, time, size: state.lastResp.size, requestHeaders: sanitizeLogHeaders(requestHeaders), requestBody, responseHeaders: sanitizeLogHeaders(pairs), responseBody: redactLogValue(parsed) });
+      return state.lastResp;
+    })
+    .catch(err => {
+      const time = Math.round(performance.now() - t0);
+      state.lastResp = { status: 0, body: { code:'NETWORK_ERROR', message: (err && err.message) ? err.message : 'Network error' }, time, size: 0, headers: [] };
+      recordHistory({ method, path: ep.path, url: sanitizeLogUrl(finalUrl), status: 0, time, size: 0, requestHeaders, requestBody, responseHeaders: [], responseBody: state.lastResp.body });
+      return state.lastResp;
+    })
+    .finally(() => {
+      state.sending = false;
+      document.getElementById('sendBtn').disabled = false;
+      updateHistoryTab();
+      renderResponse();
+      // A login fills the token; an invite/credential call fills path params.
+      if(state.lastTab === 'params' || state.lastTab === 'headers'){
+        document.getElementById('tabBody').innerHTML = renderTabContent(state.lastTab || 'headers');
+      }
+      if(typeof onComplete === 'function') onComplete(state.lastResp);
+    });
+}
+
+function updateAuthUi(){
+  const openButton = document.getElementById('loginOpenBtn');
+  const signOutButton = document.getElementById('loginSignOutBtn');
+  const accountLabel = state.user?.name || state.user?.email || 'Signed in';
+  if(openButton){
+    openButton.textContent = state.token ? accountLabel : 'Sign in';
+    openButton.title = state.token ? `${state.user?.email || accountLabel} · ${state.user?.role || 'active session'}` : 'Sign in to the API';
+    openButton.setAttribute('aria-label', state.token ? `Signed in as ${accountLabel}` : 'Sign in');
+    openButton.classList.toggle('signed-in', Boolean(state.token));
+  }
+  const accountAction = document.getElementById('upgradeBtn');
+  if(accountAction){
+    accountAction.textContent = state.token ? (state.user?.role === 'admin' ? 'Admin tools' : 'Account') : 'Upgrade';
+    accountAction.title = state.token ? `Open ${state.user?.role === 'admin' ? 'admin tools' : 'account details'}` : 'Plan upgrade';
+    accountAction.classList.toggle('signed-in', Boolean(state.token));
+  }
+  if(signOutButton) signOutButton.hidden = !state.token;
+}
+
+async function validateStoredSession(){
+  if(!state.token) return;
+  try {
+    const response = await fetch(`${String(state.baseUrl).replace(/\/+$/,'')}/me`, {
+      headers:{ Accept:'application/json', Authorization:`Bearer ${state.token}` },
+    });
+    if(response.status === 401 || response.status === 403){
+      state.token = '';
+      state.refreshToken = '';
+      state.user = null;
+      lsSet('imari:console:token', '');
+      lsSet('imari:console:refresh', '');
+      lsSet('imari:console:user', '');
+      updateAuthUi();
+      return;
+    }
+    if(!response.ok) return;
+    const data = await response.json();
+    if(data.user){
+      state.user = { name:String(data.user.name || ''), email:String(data.user.email || ''), role:String(data.user.role || 'student') };
+      lsSet('imari:console:user', JSON.stringify(state.user));
+      updateAuthUi();
+    }
+  } catch(e){
+    // Keep cached identity during transient network failure.
+  }
+}
+
+function setLoginStatus(message, kind){
+  const status = document.getElementById('loginStatus');
+  status.textContent = message;
+  status.className = 'login-status' + (kind ? ' ' + kind : '');
+}
+
+function openLoginDialog(){
+  document.getElementById('loginOverlay').hidden = false;
+  document.getElementById('loginPassword').focus();
+  setLoginStatus(state.token ? 'Bearer token is active for protected requests.' : '', state.token ? 'success' : '');
+  updateAuthUi();
+}
+
+function closeLoginDialog(){
+  document.getElementById('loginOverlay').hidden = true;
+}
+
+document.getElementById('loginOpenBtn').addEventListener('click', openLoginDialog);
+document.getElementById('loginCloseBtn').addEventListener('click', closeLoginDialog);
+document.getElementById('loginOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'loginOverlay') closeLoginDialog();
+});
+document.getElementById('loginSignOutBtn').addEventListener('click', () => {
+  state.token = '';
+  state.refreshToken = '';
+  state.user = null;
+  lsSet('imari:console:token', '');
+  lsSet('imari:console:refresh', '');
+  lsSet('imari:console:user', '');
+  updateAuthUi();
+  setLoginStatus('Signed out. Protected requests will no longer include a bearer token.', 'success');
+  if(state.selected) document.getElementById('tabBody').innerHTML = renderTabContent(state.lastTab || 'headers');
+});
+document.getElementById('loginForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const submit = document.getElementById('loginSubmitBtn');
+  state.bodyDraft['/auth/login'] = JSON.stringify({ email, password }, null, 2);
+  selectEndpoint('POST', '/auth/login');
+  setStateTab('body');
+  document.querySelector('[data-view-tab="console"]').click();
+  submit.disabled = true;
+  setLoginStatus('Signing in…');
+  sendRequest((response) => {
+    submit.disabled = false;
+    if(response && response.status >= 200 && response.status < 300 && state.token){
+      updateAuthUi();
+      setLoginStatus('Signed in. Bearer token will be sent automatically.', 'success');
+      closeLoginDialog();
+      return;
+    }
+    const message = response && response.body && response.body.message;
+    setLoginStatus(message || 'Sign-in failed. Check the API response in the console.', 'error');
+  });
+});
+
+/* ---------------- History ---------------- */
+function sanitizeSavedValue(value, key=''){
+  if(/password|token|secret|authorization|api[-_]?key/i.test(key)) return '';
+  if(Array.isArray(value)) return value.map((item) => sanitizeSavedValue(item));
+  if(value && typeof value === 'object'){
+    return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, sanitizeSavedValue(child, childKey)]));
+  }
+  return value;
+}
+function persistSavedRequests(){
+  lsSet(SAVED_REQUESTS_KEY, JSON.stringify(state.savedRequests));
+  const count = document.getElementById('savedCount');
+  if(count) count.textContent = state.savedRequests.length;
+}
+function saveCurrentRequest(){
+  if(!state.selected) return;
+  const suggestion = `${document.getElementById('methodSelect').value} ${state.selected.path}`;
+  const name = window.prompt('Name this saved request', suggestion);
+  if(name === null || !name.trim()) return;
+  let body = null;
+  try { body = sanitizeSavedValue(readBodyDraft()); } catch(e){}
+  const item = {
+    id: `saved-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: name.trim(),
+    method: document.getElementById('methodSelect').value,
+    path: state.selected.path,
+    url: sanitizeLogUrl(document.getElementById('urlInput').value.trim() || buildUrl(state.selected)),
+    params: sanitizeSavedValue(state.params),
+    query: sanitizeSavedValue(state.query),
+    body,
+    savedAt: new Date().toISOString(),
+  };
+  state.savedRequests.unshift(item);
+  persistSavedRequests();
+  renderSavedRequests();
+}
+function applySavedRequest(item){
+  if(!findEndpoint(item.method, item.path)){
+    window.alert('This saved request does not match an endpoint in the current API catalog.');
+    return;
+  }
+  selectEndpoint(item.method, item.path);
+  state.params = Object.assign({}, item.params || {});
+  state.query = Object.assign({}, item.query || {});
+  if(item.body !== null && item.body !== undefined) state.bodyDraft[item.path] = JSON.stringify(item.body, null, 2);
+  document.getElementById('urlInput').value = buildUrl(state.selected);
+  setStateTab(item.body ? 'body' : defaultTab(state.selected));
+  document.querySelector('[data-view-tab="console"]').click();
+}
+function renderSavedRequests(){
+  const list = document.getElementById('savedList');
+  if(!list) return;
+  const search = (document.getElementById('savedSearch')?.value || '').trim().toLowerCase();
+  const visible = state.savedRequests.filter((item) => `${item.name} ${item.method} ${item.path} ${item.url}`.toLowerCase().includes(search));
+  document.getElementById('savedCount').textContent = state.savedRequests.length;
+  document.getElementById('savedSummary').textContent = `${state.savedRequests.length} saved request${state.savedRequests.length === 1 ? '' : 's'} · stored in this browser`;
+  if(!visible.length){
+    list.innerHTML = `<div class="history-detail-empty">${state.savedRequests.length ? 'No saved requests match this search.' : 'No saved requests yet. Save one from the Code tab.'}</div>`;
+    return;
+  }
+  list.innerHTML = visible.map((item) => `<div class="saved-row" data-saved-id="${escapeHtml(item.id)}">
+    <div><div class="saved-row-title">${escapeHtml(item.name)}</div><div class="saved-row-meta"><span class="method m-${escapeHtml(item.method)}">${escapeHtml(item.method)}</span> ${escapeHtml(item.url)}</div></div>
+    <div class="saved-row-actions"><button class="btn btn-primary" type="button" data-saved-action="load">Load</button><button class="btn" type="button" data-saved-action="delete">Remove</button></div>
+  </div>`).join('');
+}
+function downloadJson(filename, value){
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type:'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function databaseRequest(path){
+  if(!state.token) throw new Error('Sign in with an administrator account to browse database records.');
+  const response = await fetch(`${String(state.baseUrl).replace(/\/+$/,'')}${path}`, {
+    headers:{ Accept:'application/json', Authorization:`Bearer ${state.token}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if(!response.ok) throw new Error(payload.message || `Request failed (${response.status}).`);
+  return payload;
+}
+function renderDatabaseTables(){
+  const root = document.getElementById('databaseTables');
+  if(!state.databaseTables.length){
+    root.innerHTML = '<div class="panel-note">No tables available.</div>';
+    return;
+  }
+  const search = escapeHtml(state.databaseSearch || '');
+  const entries = state.databaseTables.map((table, index) => `<div class="database-table-entry${state.selectedDatabaseTable === table.name ? ' active' : ''}" data-db-entry="${escapeHtml(table.name)}" data-search-text="${escapeHtml(`${table.label} ${table.name} ${table.description}`.toLowerCase())}">
+    <button class="database-table-button" type="button" data-db-table="${escapeHtml(table.name)}" title="Open ${escapeHtml(table.label)}"><span class="database-table-number">${String(index + 1).padStart(2, '0')}</span><span class="database-table-label">${escapeHtml(table.label)}<small>${escapeHtml(table.name)}</small></span></button>
+    <div class="database-table-actions">
+      <button class="database-table-action" type="button" data-db-action="preview" data-db-name="${escapeHtml(table.name)}" title="Preview ${escapeHtml(table.label)}" aria-label="Preview ${escapeHtml(table.label)}">RUN</button>
+      <button class="database-table-action" type="button" data-db-action="copy-query" data-db-name="${escapeHtml(table.name)}" title="Copy read-only SELECT for ${escapeHtml(table.label)}" aria-label="Copy safe SELECT for ${escapeHtml(table.label)}">SQL</button>
+    </div>
+  </div>`).join('');
+  root.innerHTML = `<div class="database-sidebar-head"><strong>Tables <span id="databaseTableCount">${state.databaseTables.length}</span></strong><input class="database-table-search" id="databaseTableSearch" type="search" value="${search}" placeholder="Search tables" aria-label="Search database tables" /></div><div id="databaseTableList">${entries}</div>`;
+}
+function renderDatabaseSection(){
+  document.querySelectorAll('[data-db-section]').forEach((button) => {
+    const active = button.dataset.dbSection === state.databaseSection;
+    button.classList.toggle('active', active);
+    if(active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  if(state.databaseSection === 'browse'){
+    loadDatabaseRows(state.databaseOffset || 0);
+    return;
+  }
+  const content = document.getElementById('databaseContent');
+  const table = state.databaseTables.find((item) => item.name === state.selectedDatabaseTable);
+  if(!table){
+    content.innerHTML = '<div class="database-notice">Choose a table from the numbered sidebar to see its details.</div>';
+    return;
+  }
+  if(state.databaseSection === 'schema'){
+    content.innerHTML = `<h2 style="font-size:14px">${escapeHtml(table.label)} schema</h2><p class="panel-note">${escapeHtml(table.description)} · ${table.columns.length} visible columns</p><div class="database-notice">Sensitive fields are excluded from this read-only explorer.</div><div class="database-grid-wrap"><table class="database-grid"><thead><tr><th>#</th><th>Column</th><th>How it is used</th></tr></thead><tbody>${table.columns.map((column, index) => `<tr><td>${String(index + 1).padStart(2, '0')}</td><td>${escapeHtml(column)}</td><td>${escapeHtml(column.replace(/_/g, ' '))}</td></tr>`).join('')}</tbody></table></div>`;
+    return;
+  }
+  const columns = table.columns.map((column) => `"${column}"`).join(', ');
+  const statement = `select ${columns}\nfrom "imari"."${table.name}"\nlimit 50;`;
+  content.innerHTML = `<h2 style="font-size:14px">Query guide</h2><p class="panel-note">Use the simple filter controls to find records in ${escapeHtml(table.label)}. The browser builds safe, read-only queries for you.</p><div class="database-notice">No SQL is executed from this guide. Database access remains limited to approved tables, approved columns, and read-only previews.</div><section class="history-detail-section"><h3>Safe preview for ${escapeHtml(table.name)}</h3><pre>${escapeHtml(statement)}</pre><button class="btn" id="copyDatabaseQueryBtn" type="button">Copy SELECT</button><button class="btn btn-primary" id="runDatabasePreviewBtn" type="button">Open table preview</button></section><section class="history-detail-section"><h3>Filtering</h3><p class="panel-note">Choose a visible column, select Contains or Exactly matches, enter a value, then open Browse data and apply the filter. Results are limited to 100 rows per page.</p></section>`;
+}
+async function loadDatabaseTables(){
+  const content = document.getElementById('databaseContent');
+  if(!state.token){
+    content.innerHTML = '<div class="database-notice">Sign in with an administrator account to inspect database records. This explorer is read-only and does not accept SQL statements.</div>';
+    document.getElementById('databaseTables').innerHTML = '';
+    return;
+  }
+  content.innerHTML = '<div class="panel-note">Loading available tables…</div>';
+  try {
+    const data = await databaseRequest('/admin/database/tables');
+    state.databaseTables = data.tables || [];
+    renderDatabaseTables();
+    if(!state.databaseTables.some((table) => table.name === state.selectedDatabaseTable)) state.selectedDatabaseTable = state.databaseTables[0]?.name || '';
+    if(state.selectedDatabaseTable) renderDatabaseSection();
+    else content.innerHTML = '<div class="panel-note">No approved tables are available.</div>';
+  } catch(err){
+    document.getElementById('databaseTables').innerHTML = '';
+    content.innerHTML = `<div class="database-notice">${escapeHtml(err.message)} This area is limited to authenticated administrators.</div>`;
+  }
+}
+async function loadDatabaseRows(offset=0, clearFilter=false){
+  if(state.databaseSection !== 'browse') return;
+  const content = document.getElementById('databaseContent');
+  const table = state.databaseTables.find((item) => item.name === state.selectedDatabaseTable);
+  if(!table) return;
+  const limit = Number(document.getElementById('databaseLimit')?.value || 50);
+  const column = clearFilter ? '' : (document.getElementById('databaseFilterColumn')?.value || '');
+  const value = clearFilter ? '' : (document.getElementById('databaseFilterValue')?.value.trim() || '');
+  const match = clearFilter ? 'contains' : (document.getElementById('databaseFilterMatch')?.value || 'contains');
+  state.databaseOffset = offset;
+  content.innerHTML = '<div class="panel-note">Loading records…</div>';
+  const params = new URLSearchParams({ table:table.name, limit:String(limit), offset:String(offset) });
+  if(value && column){ params.set('column', column); params.set('value', value); params.set('match', match); }
+  try {
+    const data = await databaseRequest(`/admin/database/rows?${params}`);
+    const th = data.columns.map((name) => `<th>${escapeHtml(name)}</th>`).join('');
+    const rows = data.rows.map((row) => `<tr>${data.columns.map((columnName) => {
+      const value = row[columnName];
+      const text = value === null || value === undefined ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+      return `<td title="${escapeHtml(text)}">${escapeHtml(text)}</td>`;
+    }).join('')}</tr>`).join('');
+    const options = table.columns.map((name) => `<option value="${escapeHtml(name)}"${name === column ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
+    content.innerHTML = `<h2 style="font-size:14px">${escapeHtml(table.label)}</h2><p class="panel-note">${escapeHtml(table.description)} · showing ${data.rows.length} records · read-only</p>
+      <div class="database-notice">Browsing only: no SQL editor, writes, deletes, or schema changes are available here. Sensitive fields are excluded from this table.</div>
+      <div class="database-controls">
+        <label>Filter column<select id="databaseFilterColumn"><option value="">Choose column</option>${options}</select></label>
+        <label>Match<select id="databaseFilterMatch"><option value="contains"${match === 'contains' ? ' selected' : ''}>Contains</option><option value="equals"${match === 'equals' ? ' selected' : ''}>Exactly matches</option></select></label>
+        <label>Value<input id="databaseFilterValue" value="${escapeHtml(value)}" placeholder="Type to filter" /></label>
+        <label>Rows<select id="databaseLimit"><option${limit===25?' selected':''}>25</option><option${limit===50?' selected':''}>50</option><option${limit===100?' selected':''}>100</option></select></label>
+        <button class="btn btn-primary" type="button" id="databaseApplyBtn">Apply</button>
+        <button class="btn" type="button" id="databaseClearBtn">Clear filter</button>
+      </div>
+      <div class="database-grid-wrap"><table class="database-grid"><thead><tr>${th}</tr></thead><tbody>${rows || `<tr><td colspan="${data.columns.length}">No records match that filter.</td></tr>`}</tbody></table></div>
+      <div class="codegen-actions"><button class="btn" type="button" id="databasePrevBtn"${offset <= 0 ? ' disabled' : ''}>Previous</button><span class="panel-note">Rows ${offset + (data.rows.length ? 1 : 0)}–${offset + data.rows.length}</span><button class="btn" type="button" id="databaseNextBtn"${!data.hasMore ? ' disabled' : ''}>Next</button></div>`;
+    state.databaseOffset = offset;
+    renderDatabaseTables();
+  } catch(err){
+    content.innerHTML = `<div class="database-notice">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function updateHistoryTab(){
+  const list = document.getElementById('historyList');
+  document.getElementById('historyCount').textContent = state.history.length;
+  document.getElementById('historySummary').textContent = `${state.history.length} request${state.history.length === 1 ? '' : 's'} recorded in this session`;
+  if(state.history.length === 0){
+    list.innerHTML = `<div class="panel-note">No requests yet. Send one to see it here.</div>`;
+    document.getElementById('historyTableBody').innerHTML = `<tr><td class="history-empty-row" colspan="5">No request logs yet. Send a request from the Console tab.</td></tr>`;
+    document.getElementById('historyDetails').innerHTML = `<div class="history-detail-empty">Select a request to inspect its complete log.</div>`;
+    state.selectedHistoryId = null;
+    return;
+  }
+  let html = '';
+  for(const h of state.history.slice(0, 12)){
+    const ok = h.status >= 200 && h.status < 300;
+    const cls = ok ? 'status-2' : (h.status >= 400 ? 'status-5' : 'status-3');
+    html += `<div class="history-row" data-history-id="${h.id}" title="View request details">
+      <span class="method small" style="color:var(--text)">${h.method}</span>
+      <span class="history-path">${escapeHtml(h.url)}</span>
+      <span class="history-status ${cls}">${h.status}</span>
+      <span style="font-family:var(--mono);font-size:10.5px;color:var(--faint)">${h.time} ms</span>
+    </div>`;
+  }
+  list.innerHTML = html;
+
+  const search = document.getElementById('historySearch').value.trim().toLowerCase();
+  const visible = state.history.filter((h) => `${h.method} ${h.url} ${h.status} ${h.timestamp}`.toLowerCase().includes(search));
+  const tbody = document.getElementById('historyTableBody');
+  if(!visible.length){
+    tbody.innerHTML = `<tr><td class="history-empty-row" colspan="5">No logs match this filter.</td></tr>`;
+    document.getElementById('historyDetails').innerHTML = `<div class="history-detail-empty">No matching request selected.</div>`;
+    return;
+  }
+  if(!visible.some((h) => h.id === state.selectedHistoryId)) state.selectedHistoryId = visible[0].id;
+  tbody.innerHTML = visible.map((h) => {
+    const cls = h.status >= 200 && h.status < 300 ? 'status-2' : h.status >= 400 || h.status === 0 ? 'status-5' : 'status-3';
+    return `<tr data-history-id="${h.id}" class="${h.id === state.selectedHistoryId ? 'selected' : ''}">
+      <td><span class="method m-${escapeHtml(h.method)}">${escapeHtml(h.method)}</span></td>
+      <td class="history-url" title="${escapeHtml(h.url)}">${escapeHtml(h.url)}</td>
+      <td><span class="history-status ${cls}">${h.status}</span></td>
+      <td>${h.time} ms · ${escapeHtml(fmtSize(h.size))}</td>
+      <td>${escapeHtml(new Date(h.timestamp).toLocaleString())}</td>
+    </tr>`;
+  }).join('');
+  renderHistoryDetails();
+}
+
+function renderHistoryDetails(){
+  const h = state.history.find((entry) => entry.id === state.selectedHistoryId);
+  const details = document.getElementById('historyDetails');
+  if(!h){
+    details.innerHTML = `<div class="history-detail-empty">Select a request to inspect its complete log.</div>`;
+    return;
+  }
+  const statusClass = h.status >= 200 && h.status < 300 ? 'status-2' : h.status >= 400 || h.status === 0 ? 'status-5' : 'status-3';
+  const renderValue = (value) => escapeHtml(value == null ? '(empty)' : typeof value === 'string' ? value : JSON.stringify(value, null, 2));
+  details.innerHTML = `<div class="history-detail-title">
+      <span class="method m-${escapeHtml(h.method)}">${escapeHtml(h.method)}</span>
+      <h2>${escapeHtml(h.path)}</h2>
+      <span class="history-status ${statusClass}">${h.status}</span>
+    </div>
+    <div class="history-detail-meta">
+      <div><small>Timestamp</small><span>${escapeHtml(new Date(h.timestamp).toLocaleString())}</span></div>
+      <div><small>Duration / size</small><span>${h.time} ms / ${escapeHtml(fmtSize(h.size))}</span></div>
+      <div style="grid-column:1/-1"><small>Request URL</small><span>${escapeHtml(h.url)}</span></div>
+    </div>
+    <section class="history-detail-section"><h3>Request headers</h3><pre>${renderValue(h.requestHeaders)}</pre></section>
+    <section class="history-detail-section"><h3>Request body</h3><pre>${renderValue(h.requestBody)}</pre></section>
+    <section class="history-detail-section"><h3>Response headers</h3><pre>${renderValue(h.responseHeaders)}</pre></section>
+    <section class="history-detail-section"><h3>Response body</h3><pre>${renderValue(h.responseBody)}</pre></section>`;
+}
+
+/* ---------------- Env ---------------- */
+function renderEnvs(){
+  const sel = document.getElementById('envSelect');
+  const names = Object.keys(ENV_MAP);
+  const remembered = lsGet('imari:env','local');
+  sel.innerHTML = '';
+  names.forEach(k=>{ const opt = document.createElement('option'); opt.value = k; opt.textContent = k; sel.appendChild(opt); });
+  sel.value = names.includes(remembered) ? remembered : names[0];
+  applyEnv();
+  const storedBase = lsGet('imari:base','');
+  if(storedBase) applyBaseUrl(storedBase);
+  renderEnvEditor();
+}
+
+/** Rows of the environment editor: name, base URL, delete. */
+function renderEnvEditor(){
+  const rows = document.getElementById('envRows');
+  if(!rows) return;
+  const names = Object.keys(ENV_MAP);
+  rows.innerHTML = names.map(name => `<div class="env-editor-row">
+      <input value="${escapeHtml(name)}" data-envname="${escapeHtml(name)}" placeholder="name" spellcheck="false" />
+      <input value="${escapeHtml(ENV_MAP[name])}" data-envurl="${escapeHtml(name)}" placeholder="https://host/v1" spellcheck="false" />
+      <button class="kv-del" data-envdel="${escapeHtml(name)}" title="Delete"${names.length < 2 ? ' disabled' : ''}>×</button>
+    </div>`).join('') || '<div class="panel-note" style="padding:0">No environments — add one.</div>';
+}
+function applyEnv(){
+  const env = document.getElementById('envSelect').value;
+  state.baseUrl = ENV_MAP[env] || Object.values(ENV_MAP)[0] || DEFAULT_ENVS.local;
+  document.getElementById('envLabel').textContent = env;
+  document.getElementById('baseUrlInput').value = state.baseUrl;
+  document.getElementById('backendLabel').textContent = state.baseUrl;
+  lsSet('imari:env', env);
+  lsSet('imari:base', state.baseUrl);
+  if(state.selected) document.getElementById('urlInput').value = buildUrl(state.selected);
+}
+
+/** A hand-edited base URL wins over the environment preset. */
+function applyBaseUrl(value){
+  const v = String(value || '').trim().replace(/\/+$/,'');
+  if(!v) return;
+  state.baseUrl = v;
+  document.getElementById('baseUrlInput').value = v;
+  document.getElementById('backendLabel').textContent = v;
+  lsSet('imari:base', v);
+  if(state.selected) document.getElementById('urlInput').value = buildUrl(state.selected);
+}
+
+/* ---------------- Copy ---------------- */
+function copyText(t){
+  const done = () => { clearTimeout(window._copyTimer); };
+  navigator.clipboard && navigator.clipboard.writeText(t).then(done).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+  });
+  window._copyTimer = setTimeout(done, 1800);
+}
+
+/* ---------------- Events ---------------- */
+document.getElementById('sendBtn').addEventListener('click', sendRequest);
+document.getElementById('respResendBtn').addEventListener('click', sendRequest);
+document.getElementById('respCopyBtn').addEventListener('click', ()=>{
+  if(state.lastResp){ copyText(JSON.stringify(state.lastResp.body, null, 2)); const b = document.getElementById('respCopyBtn'); b.classList.add('copied'); setTimeout(()=>b.classList.remove('copied'),1500); }
+});
+document.getElementById('urlCopyBtn').addEventListener('click', ()=>{ if(state.selected) copyText(document.getElementById('urlInput').value.trim() || buildUrl(state.selected)); });
+document.getElementById('urlInput').addEventListener('keydown', e=>{
+  if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); sendRequest(); }
+});
+document.getElementById('prettyToggle').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  state.pretty = b.dataset.mode === 'pretty';
+  document.querySelectorAll('#prettyToggle button').forEach(x=>x.classList.toggle('active', x===b));
+  if(state.lastResp) renderResponse();
+});
+document.querySelector('.resp-tabs').addEventListener('click', e=>{
+  const t = e.target.closest('.resp-tab'); if(!t) return;
+  state.respTab = t.dataset.rtab;
+  renderResponse();
+});
+document.getElementById('tabBody').addEventListener('change', (e) => {
+  if(e.target.id === 'codeLanguage') refreshCodePreview();
+});
+document.getElementById('tabBody').addEventListener('click', (e) => {
+  if(e.target.closest('#saveRequestBtn')){
+    saveCurrentRequest();
+    return;
+  }
+  const bodyMode = e.target.closest('[data-body-mode]');
+  if(bodyMode){
+    const formMode = bodyMode.dataset.bodyMode === 'form';
+    if(formMode){
+      const area = document.getElementById('bodyArea');
+      try {
+        const value = JSON.parse(area.value);
+        state.bodyDraft[state.selected.path] = JSON.stringify(value, null, 2);
+        document.getElementById('bodyFormFields').innerHTML = renderBodyFields(value, []);
+      } catch(err){
+        alert('Fix the JSON before switching to Form: ' + err.message);
+        return;
+      }
+    }
+    document.getElementById('bodyFormFields').hidden = !formMode;
+    document.getElementById('bodyRawEditor').hidden = formMode;
+    document.querySelectorAll('[data-body-mode]').forEach((button) => button.classList.toggle('active', button === bodyMode));
+    return;
+  }
+  const removeItem = e.target.closest('[data-body-remove]');
+  if(removeItem){
+    updateBodyArray(JSON.parse(decodeURIComponent(removeItem.dataset.bodyRemove)), 'remove', Number(removeItem.dataset.bodyIndex));
+    return;
+  }
+  const addItem = e.target.closest('[data-body-add]');
+  if(addItem){
+    updateBodyArray(JSON.parse(decodeURIComponent(addItem.dataset.bodyAdd)), 'add');
+    return;
+  }
+  const copyButton = e.target.closest('[data-code-copy]');
+  if(copyButton && state.selected){
+    const text = copyButton.dataset.codeCopy === 'endpoint'
+      ? `${document.getElementById('methodSelect').value} ${state.selected.path}`
+      : document.getElementById('urlInput').value.trim() || buildUrl(state.selected);
+    copyText(text);
+    copyButton.classList.add('copied');
+    setTimeout(() => copyButton.classList.remove('copied'), 1200);
+    return;
+  }
+  if(e.target.closest('#copyCodeBtn')){
+    const preview = document.getElementById('codePreview');
+    if(preview) copyText(preview.value);
+    return;
+  }
+  if(e.target.closest('#runCodeRequestBtn')) sendRequest();
+});
+/* ---- live edits: path params, query string, body, token ---- */
+document.addEventListener('input', e=>{
+  const el = e.target;
+  if(el.dataset && el.dataset.bodyPath !== undefined && state.selected){
+    const path = JSON.parse(decodeURIComponent(el.dataset.bodyPath));
+    let value;
+    if(el.type === 'checkbox') value = el.checked;
+    else if(el.dataset.bodyType === 'number') value = el.value === '' ? '' : Number(el.value);
+    else value = el.value;
+    writeBodyPath(path, value);
+    return;
+  }
+  if(el.id === 'authTokenInput'){
+    state.token = el.value.trim();
+    lsSet('imari:console:token', state.token);
+    return;
+  }
+  if(el.id === 'urlInput'){
+    refreshCodePreview();
+    return; // hand-typed URL — sent verbatim until a param edit regenerates it
+  }
+  if(el.dataset && el.dataset.envurl !== undefined){
+    const name = el.dataset.envurl;
+    ENV_MAP[name] = el.value.trim();
+    saveEnvMap();
+    if(document.getElementById('envSelect').value === name) applyEnv();
+    return;
+  }
+  if(el.dataset && el.dataset.param !== undefined){
+    state.params[el.dataset.param] = el.value;
+    syncUrl();
+    return;
+  }
+  if(el.dataset && el.dataset.qval !== undefined){
+    state.query[el.dataset.qval] = el.value;
+    syncUrl();
+    return;
+  }
+  if(el.dataset && el.dataset.qkey !== undefined){
+    const oldKey = el.dataset.qkey;
+    const newKey = el.value.trim();
+    if(newKey && newKey !== oldKey && !(newKey in state.query)){
+      state.query[newKey] = state.query[oldKey];
+      delete state.query[oldKey];
+      el.dataset.qkey = newKey;
+    }
+    return;
+  }
+  if(el.id === 'bodyArea' && state.selected){
+    state.bodyDraft[state.selected.path] = el.value;
+    refreshCodePreview();
+  }
+});
+
+/* Renaming an environment rebuilds the map, because the name is the key. */
+document.addEventListener('change', e=>{
+  const el = e.target.closest && e.target.closest('[data-envname]');
+  if(!el) return;
+  const oldName = el.dataset.envname;
+  const newName = el.value.trim();
+  if(!newName || newName === oldName || newName in ENV_MAP) return;
+  const rebuilt = {};
+  for(const [k,v] of Object.entries(ENV_MAP)) rebuilt[k === oldName ? newName : k] = v;
+  ENV_MAP = rebuilt;
+  if(lsGet('imari:env','') === oldName) lsSet('imari:env', newName);
+  saveEnvMap();
+  renderEnvs();
+});
+
+document.addEventListener('click', e=>{
+  if(e.target.closest('#envManageBtn')){
+    const panel = document.getElementById('envEditor');
+    panel.hidden = !panel.hidden;
+    if(!panel.hidden) renderEnvEditor();
+    return;
+  }
+  if(e.target.closest('#envCloseBtn')){ document.getElementById('envEditor').hidden = true; return; }
+  if(e.target.closest('#envAddBtn')){
+    let i = 1; while(('env' + i) in ENV_MAP) i++;
+    ENV_MAP['env' + i] = 'http://localhost:4100/v1';
+    saveEnvMap();
+    renderEnvs();
+    document.getElementById('envEditor').hidden = false;
+    const input = document.querySelector('[data-envname="env' + i + '"]');
+    if(input){ input.focus(); input.select(); }
+    return;
+  }
+  if(e.target.closest('#envResetBtn')){
+    ENV_MAP = Object.assign({}, DEFAULT_ENVS);
+    saveEnvMap();
+    lsSet('imari:env','local');
+    lsSet('imari:base','');
+    renderEnvs();
+    return;
+  }
+  const delEnv = e.target.closest('[data-envdel]');
+  if(delEnv && Object.keys(ENV_MAP).length > 1){
+    delete ENV_MAP[delEnv.dataset.envdel];
+    saveEnvMap();
+    const names = Object.keys(ENV_MAP);
+    if(!names.includes(lsGet('imari:env',''))) lsSet('imari:env', names[0]);
+    renderEnvs();
+    return;
+  }
+  if(e.target.closest('#addQueryBtn')){
+    let i = 1; while(('param'+i) in state.query) i++;
+    state.query['param'+i] = '';
+    document.getElementById('tabBody').innerHTML = renderTabContent('params');
+    syncUrl();
+    return;
+  }
+  if(e.target.closest('#clearTokenBtn')){
+    state.token = ''; lsSet('imari:console:token','');
+    state.refreshToken = ''; lsSet('imari:console:refresh','');
+    document.getElementById('tabBody').innerHTML = renderTabContent('headers');
+    return;
+  }
+  const del = e.target.closest('[data-qdel]');
+  if(del){ delete state.query[del.dataset.qdel]; document.getElementById('tabBody').innerHTML = renderTabContent('params'); syncUrl(); return; }
+  const reset = e.target.closest('[data-param]');
+  if(reset && reset.tagName === 'BUTTON'){
+    const t = reset.dataset.param;
+    delete state.params[t];
+    if(t === 'id'){
+      if(state.selected.path === '/admin/invites/:id') state.ids.invite = null;
+      if(state.selected.path === '/admin/credentials/:id') state.ids.credential = null;
+      if(state.selected.path === '/admin/students/:id') state.ids.student = null;
+    }
+    if(t === 'credentialId') state.ids.credential = null;
+    document.getElementById('tabBody').innerHTML = renderTabContent('params');
+    syncUrl();
+    return;
+  }
+});
+document.getElementById('methodSelect').addEventListener('change', e=>{
+  if(state.selected) state.selected.method = e.target.value;
+  refreshCodePreview();
+});
+
+/* ---------------- Init ---------------- */
+document.getElementById('envSelect').addEventListener('change', applyEnv);
+document.getElementById('baseUrlInput').addEventListener('change', e=>applyBaseUrl(e.target.value));
+document.getElementById('baseUrlInput').addEventListener('input', e=>applyBaseUrl(e.target.value));
+document.getElementById('upgradeBtn').addEventListener('click', ()=>{
+  if(!state.token){
+    openLoginDialog();
+    return;
+  }
+  if(state.user?.role === 'admin'){
+    document.querySelector('[data-view-tab="database"]').click();
+    return;
+  }
+  openLoginDialog();
+  setLoginStatus(`${state.user?.name || state.user?.email || 'You'} · ${state.user?.role || 'signed in'}`, 'success');
+});
+document.getElementById('themeToggleBtn').addEventListener('click', ()=>{
+  applyTheme(document.body.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+document.querySelector('.top-nav').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-view-tab]');
+  if(!tab) return;
+  document.getElementById('workspace').dataset.view = tab.dataset.viewTab;
+  document.querySelectorAll('.top-nav-btn').forEach((button) => button.classList.toggle('active', button === tab));
+  if(tab.dataset.viewTab === 'saved') renderSavedRequests();
+  if(tab.dataset.viewTab === 'database') loadDatabaseTables();
+});
+document.getElementById('savedSearch').addEventListener('input', renderSavedRequests);
+document.getElementById('savedList').addEventListener('click', (e) => {
+  const action = e.target.closest('[data-saved-action]');
+  if(!action) return;
+  const row = action.closest('[data-saved-id]');
+  const item = state.savedRequests.find((saved) => saved.id === row.dataset.savedId);
+  if(!item) return;
+  if(action.dataset.savedAction === 'load') applySavedRequest(item);
+  if(action.dataset.savedAction === 'delete'){
+    state.savedRequests = state.savedRequests.filter((saved) => saved.id !== item.id);
+    persistSavedRequests();
+    renderSavedRequests();
+  }
+});
+document.getElementById('databaseTables').addEventListener('click', (e) => {
+  const action = e.target.closest('[data-db-action]');
+  if(action){
+    e.stopPropagation();
+    const table = state.databaseTables.find((item) => item.name === action.dataset.dbName);
+    if(!table) return;
+    if(action.dataset.dbAction === 'preview'){
+      state.selectedDatabaseTable = table.name;
+      state.databaseSection = 'browse';
+      renderDatabaseSection();
+      renderDatabaseTables();
+      return;
+    }
+    if(action.dataset.dbAction === 'copy-query'){
+      const columns = table.columns.map((column) => `"${column}"`).join(', ');
+      copyText(`select ${columns}\nfrom "imari"."${table.name}"\nlimit 50;`);
+      action.classList.add('copied');
+      setTimeout(() => action.classList.remove('copied'), 1000);
+      return;
+    }
+  }
+  const button = e.target.closest('[data-db-table]');
+  if(!button) return;
+  state.selectedDatabaseTable = button.dataset.dbTable;
+  state.databaseSection = 'browse';
+  renderDatabaseSection();
+  renderDatabaseTables();
+});
+document.getElementById('databaseTables').addEventListener('input', (e) => {
+  if(e.target.id !== 'databaseTableSearch') return;
+  state.databaseSearch = e.target.value.trim().toLowerCase();
+  const entries = [...document.querySelectorAll('#databaseTableList [data-db-entry]')];
+  let visible = 0;
+  entries.forEach((entry) => {
+    const matches = entry.dataset.searchText.includes(state.databaseSearch);
+    entry.hidden = !matches;
+    if(matches) visible++;
+  });
+  document.getElementById('databaseTableCount').textContent = `${visible}/${state.databaseTables.length}`;
+});
+document.getElementById('databaseContent').addEventListener('click', (e) => {
+  if(e.target.closest('#copyDatabaseQueryBtn')){
+    const table = state.databaseTables.find((item) => item.name === state.selectedDatabaseTable);
+    if(table){
+      const columns = table.columns.map((column) => `"${column}"`).join(', ');
+      copyText(`select ${columns}\nfrom "imari"."${table.name}"\nlimit 50;`);
+    }
+    return;
+  }
+  if(e.target.closest('#runDatabasePreviewBtn')){
+    state.databaseSection = 'browse';
+    renderDatabaseSection();
+    return;
+  }
+  if(e.target.closest('#databaseApplyBtn')){ loadDatabaseRows(0); return; }
+  if(e.target.closest('#databaseClearBtn')){
+    loadDatabaseRows(0, true);
+    return;
+  }
+  if(e.target.closest('#databasePrevBtn')){ loadDatabaseRows(Math.max(0, (state.databaseOffset || 0) - Number(document.getElementById('databaseLimit').value))); return; }
+  if(e.target.closest('#databaseNextBtn')){ loadDatabaseRows((state.databaseOffset || 0) + Number(document.getElementById('databaseLimit').value)); }
+});
+document.getElementById('databaseSectionNav').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-db-section]');
+  if(!button) return;
+  state.databaseSection = button.dataset.dbSection;
+  renderDatabaseSection();
+});
+document.getElementById('importSavedBtn').addEventListener('click', () => document.getElementById('savedFileInput').click());
+document.getElementById('savedFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const items = Array.isArray(data) ? data : data.requests;
+    if(!Array.isArray(items) || items.length > 100) throw new Error('Choose a collection with up to 100 requests.');
+    const imported = items.filter((item) => item && typeof item.name === 'string' && typeof item.method === 'string' && typeof item.path === 'string').map((item) => ({
+      id:`saved-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+      name:item.name.slice(0,100), method:item.method, path:item.path,
+      url:typeof item.url === 'string' ? sanitizeLogUrl(item.url) : '',
+      params:sanitizeSavedValue(item.params || {}), query:sanitizeSavedValue(item.query || {}),
+      body:sanitizeSavedValue(item.body ?? null), savedAt:new Date().toISOString(),
+    }));
+    if(!imported.length) throw new Error('No valid requests found in that file.');
+    state.savedRequests = [...imported, ...state.savedRequests].slice(0,100);
+    persistSavedRequests();
+    renderSavedRequests();
+  } catch(err){ window.alert(`Could not import collection: ${err.message}`); }
+  e.target.value = '';
+});
+document.getElementById('exportSavedBtn').addEventListener('click', () => {
+  downloadJson('imari-request-collection.json', { version:1, requests:state.savedRequests });
+});
+document.getElementById('responseSearch').addEventListener('input', (e) => {
+  state.responseSearch = e.target.value.trim().toLowerCase();
+  applyResponseSearch();
+});
+document.getElementById('expandResponseBtn').addEventListener('click', () => document.querySelectorAll('#respBody details.json-node').forEach((node) => { node.open = true; }));
+document.getElementById('collapseResponseBtn').addEventListener('click', () => document.querySelectorAll('#respBody details.json-node').forEach((node) => { node.open = false; }));
+document.getElementById('historySearch').addEventListener('input', updateHistoryTab);
+document.getElementById('historyView').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-history-id]');
+  if(!row) return;
+  state.selectedHistoryId = Number(row.dataset.historyId);
+  updateHistoryTab();
+});
+document.getElementById('historyList').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-history-id]');
+  if(!row) return;
+  state.selectedHistoryId = Number(row.dataset.historyId);
+  document.getElementById('workspace').dataset.view = 'history';
+  document.querySelectorAll('.top-nav-btn').forEach((button) => button.classList.toggle('active', button.dataset.viewTab === 'history'));
+  updateHistoryTab();
+});
+document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+  state.history = [];
+  state.selectedHistoryId = null;
+  updateHistoryTab();
+});
+document.getElementById('exportHistoryBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state.history, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'imari-api-history.json';
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+document.addEventListener('click', e => {
+  const card = e.target.closest('[data-quick]');
+  if (!card) return;
+  if(card.dataset.quick === 'login'){
+    openLoginDialog();
+    return;
+  }
+  const action = QUICK_ACTIONS[card.dataset.quick];
+  if (!action) return;
+
+  const endpoint = ENDPOINTS.find(item => item.method === action.method && item.path === action.path);
+  if (endpoint) {
+    selectEndpoint(action.method, action.path);
+    if (action.body !== undefined && action.body !== null) {
+      state.bodyDraft[action.path] = JSON.stringify(action.body, null, 2);
+      document.getElementById('tabBody').innerHTML = renderTabContent('body');
+    }
+    if (action.autoSend) {
+      setTimeout(() => sendRequest(), 20);
+    }
+  }
+});
+
+function init(){
+  applyTheme(lsGet('imari:console:theme', 'light'));
+  updateAuthUi();
+  renderEnvs();
+  renderSidebar('');
+  selectEndpoint('POST', '/auth/login');
+  setStateTab('body');
+  updateTabCounts();
+  updateHistoryTab();
+  renderSavedRequests();
+  validateStoredSession();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

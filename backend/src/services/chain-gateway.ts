@@ -230,11 +230,16 @@ export class SimulatedChainGateway implements ChainGateway {
     return { txHash: simulatedTxHash(`reinstate:${credentialId}`), blockNumber: simulatedBlock(credentialId) };
   }
 
-  async read(): Promise<ChainRecord | null> {
+  /**
+   * The offline gateway anchors nothing, so there is never an anchored
+   * record to read. Returning null keeps "not on any chain" distinct from
+   * "anchored but revoked".
+   */
+  async read(_credentialId?: string): Promise<ChainRecord | null> {
     return null;
   }
 
-  async verify(): Promise<ChainVerification> {
+  async verify(_credentialId?: string, _presentedHash?: string): Promise<ChainVerification> {
     return { status: 'none', matches: false };
   }
 }

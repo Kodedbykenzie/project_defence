@@ -45,6 +45,7 @@ All API routes are mounted under the **`/v1`** prefix (e.g. `GET /v1/modules`). 
 | `POST /v1/auth/register` | public | Create account; requires valid invite. Inserts `users` + `invite_redemptions` atomically |
 | `POST /v1/auth/login` · `POST /v1/auth/google` | public | Password login / Google OAuth sign-in (Google sign-up also requires an invite) |
 | `POST /v1/auth/password/forgot` · `/verify` · `/reset` | public | 6-digit reset code flow — 15 min expiry, max 5 attempts |
+| `GET /v1/me` | self | The signed-in user with their preferences and student profile |
 | `GET/PUT /v1/me/preferences` | self | Read/update language, text size, alert prefs, onboarding answers |
 | `POST /v1/me/cookie-consent` | self | Record the user's cookie-consent choice |
 | `GET /v1/assessment/diagnostic` | student | List active diagnostic items (answers stripped server-side) |
@@ -52,7 +53,8 @@ All API routes are mounted under the **`/v1`** prefix (e.g. `GET /v1/modules`). 
 | `GET /v1/assessment/attempts` | student | History of the caller's previous attempts |
 | `GET /v1/modules` · `GET /v1/modules/:slug` | student | Published modules only; slug-based routing |
 | `POST /v1/modules/:slug/lessons/:index/complete` | student | Mark a lesson complete; advances `module_progress` |
-| `POST /v1/modules/:slug/activity` · `/quiz` | student | Record activity / quiz result in `module_progress` / `quiz_attempts` |
+| `POST /v1/modules/:slug/activity` | student | Record the activity response in `module_progress` |
+| `POST /v1/modules/:slug/quiz` | student | Record a quiz attempt in `quiz_attempts`; scored server-side and answered with `{ score, passed, correct, total, passingScore, results }` — `results` gives per-question feedback (`questionId`, `correct`, `selected`, `answer`, `explanation`) once the attempt is graded |
 | `POST /v1/modules/:slug/credential` | student | Issue credential when competency criteria met (DB trigger enforces); anchors hash on-chain |
 | `POST /v1/modules/:slug/feedback` | student | Rate a module (star rating after completion) |
 | `GET /v1/verify/:credentialId?hash=` | public | Verify a credential against DB + contract; logs to `credential_verifications` |
@@ -106,6 +108,28 @@ The prototype keeps state in `frontend/src/contexts/PlatformContext.tsx` and `fr
 | `savePreferences`, Settings page | `PUT /me/preferences` |
 
 Use Supabase Realtime on `notifications` (filtered by `recipient_id` or audience) to drive the in-app toasts that `useNotificationToasts` already shows.
+
+## Verification
+
+```bash
+npm test        # unit + contract tests, no server needed
+npm run dev     # terminal 1
+npm run smoke   # terminal 2 — every endpoint, both roles, cleans up after itself
+```
+
+`npm run smoke` requires a seeded database (`npm run db:setup`). It signs in as
+the demo student, the eligible student and an admin, exercises all endpoints
+including credential issuance, then deletes the module, invite, account and
+credential it created, so it can be run repeatedly. Point it at another host
+with `API_ROOT=http://localhost:4100 npm run smoke`.
+
+Seeded accounts (`demo1234` for all):
+
+| Account | Role | Notes |
+|---|---|---|
+| `admin@imari.rw` | admin | Platform administration |
+| `aline@alustudent.com` | student | Demo learner |
+| `eligible@alustudent.com` | student | Already meets every competency rule for `borrowing-wisely`, so `POST /modules/borrowing-wisely/credential` returns `201` |
 
 ## Errors
 

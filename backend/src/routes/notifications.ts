@@ -48,7 +48,7 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
              or (n.audience = 'admins'  and $2)
              or (n.audience = 'students' and $3)
             )
-          and ($4::text is null or n.kind = $4)
+          and ($4::text is null or n.kind::text = $4)
         order by n.created_at desc
         limit $5 offset $6`,
       [
