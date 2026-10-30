@@ -41,7 +41,7 @@ cd ../blockchain && npm install
 
 ```bash
 # Apply migrations in order, then seed reference data
-psql -d imari -f database/migrations/0001_init.sql   # repeat for each migration
+psql -d imari -f database/migrations/0001_schema.sql   # then 0002 … 0006, in order
 psql -d imari -f database/seed/0001_reference_data.sql
 # or via the backend scripts:
 cd backend && npm run db:setup
@@ -68,7 +68,6 @@ Demo accounts: student `aline@alustudent.com`, admin `admin@imari.rw`, password 
 
 ## 4. Designs
 
-- **Figma mockups** — _(insert link to your Figma file)_
 - **System diagram**:
 
 ```
@@ -109,7 +108,7 @@ digraph tx {
 }
 ```
 
-The contract's events (`Issued`, `Revoked`, `Reinstated`) can also be plotted as a timeline — our backend watcher (`backend log: [watcher] subscribed to registry events`) already consumes them.
+The contract's events (`CredentialIssued`, `CredentialRevoked`, `CredentialReinstated`) can also be plotted as a timeline — our backend watcher (`backend log: [watcher] subscribed to registry events`) already consumes them.
 
 **Consensus algorithms:** the local dev node auto-mines per transaction (effectively PoA on a single node); production runs on **Ethereum Sepolia, which uses Proof of Stake** with ~12-second slots.
 
@@ -119,7 +118,7 @@ The contract's events (`Issued`, `Revoked`, `Reinstated`) can also be plotted as
 |---|---|---|
 | On-chain privacy | Only `keccak256(credentialId)` + `contentHash` + status stored — no personal data | `ImariCredentialRegistry.sol` |
 | Access control | `onlyOwner` / `onlyIssuer` modifiers; `setIssuer` rotates the hot wallet | contract |
-| Pause switch | `pause()`/`unpause()` blocks issuance/revocation in an incident | contract + 8-test suite |
+| Pause switch | `setPaused(true/false)` blocks issuance/revocation in an incident | contract + 8-test suite |
 | Tamper evidence | `verify()` recomputes the presented hash against the stored one | contract |
 | API auth | HS256 JWT access + refresh rotation | `backend/src/auth-plugin.ts` |
 | Rate limiting | Global limit + stricter auth limits | `backend/src/app.ts` |

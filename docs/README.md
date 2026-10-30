@@ -12,7 +12,7 @@ Personalised financial literacy learning for university students in Kigali (ALU 
 | `blockchain/` | Solidity credential registry for Sepolia | `blockchain/README.md` |
 | `docs/` | This overview and the end-to-end integration guide | — |
 
-This repository is a monorepo: `backend/`, `blockchain/`, `database/` and `docs/` live at the root alongside `frontend/`, which is the npm workspace declared in the root `package.json`.
+This repository is a monorepo: `frontend/`, `backend/`, `blockchain/`, `database/` and `docs/` live at the root. There is no root `package.json` — run `npm install` inside the package you are working in.
 
 ## Architecture (Figure 3)
 

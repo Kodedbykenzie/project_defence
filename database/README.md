@@ -10,7 +10,9 @@ database/
 │   ├── 0001_schema.sql          types, 27 tables, constraints
 │   ├── 0002_indexes.sql         hot-path, partial, GIN and trigram indexes
 │   ├── 0003_triggers.sql        slugs, invites, progress, credentials, notifications, audit
-│   └── 0004_rls_and_views.sql   Supabase row-level security + evaluation views
+│   ├── 0004_rls_and_views.sql   Supabase row-level security + evaluation views
+│   ├── 0005_auth_sessions.sql    server-side refresh-token sessions (rotation, reuse detection)
+│   └── 0006_audit_origin.sql     audit_log client_ip / client_location + hardened audit trigger
 └── seed/
     └── 0001_reference_data.sql  domains, institutions, platform settings
 ```
@@ -40,13 +42,14 @@ psql "$DATABASE_URL" -f database/seed/0001_reference_data.sql
 | Requirement | Tables |
 |---|---|
 | FR1 Accounts & profile | `users`, `student_profiles`, `user_preferences`, `password_reset_codes`, `cookie_consents` |
+| Refresh-token auth (0005) | `auth_sessions` (hashed refresh tokens, rotation, reuse detection) |
 | Invite-only pilot | `invites`, `invite_redemptions` |
 | FR2–FR3 Diagnostic & scoring | `questions` (module_id null), `assessment_attempts`, `attempt_answers`, `domain_scores` |
 | FR4 Recommendations | `recommendations` (+ `platform_settings.recommendation.threshold`) |
 | FR5–FR6 Content | `domains`, `modules`, `module_objectives`, `lessons`, `activities`, `module_resources` |
 | FR7 Progress | `module_progress`, `quiz_attempts` |
 | FR8 Feedback | `module_feedback`, `recommendations.relevance` |
-| FR9 Admin | `platform_settings`, `audit_log` |
+| FR9 Admin | `platform_settings`, `audit_log` (+ origin columns from 0006: `client_ip`, `client_location`) |
 | FR10 Credentials | `credentials`, `credential_verifications` |
 | Notifications | `notifications`, `notification_reads` |
 | FR11 Evaluation | `event_logs`, views `v_knowledge_gain`, `v_recommendation_accuracy`, `v_credential_health` |

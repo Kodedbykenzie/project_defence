@@ -26,16 +26,17 @@ Imari assesses each student's financial-literacy level, recommends modules for t
 | `backend/` | Fastify + TypeScript API service (auth, scoring, modules, credentials, admin) |
 | `backend/src/app.ts` | App factory: security middleware + route registration under `/v1` |
 | `backend/src/routes/` | Route modules: `auth`, `me`, `assessment`, `modules`, `credentials`, `notifications`, `admin` |
-| `backend/src/lib/` | Shared helpers (DB, chain client, hashing, tokens) |
+| `backend/src/lib/` | Shared helpers: `credential.ts` (canonical hashes), `scoring.ts`, `watcher.ts` (chain events) |
 | `backend/openapi.yaml` | Full OpenAPI 3 contract for every endpoint |
-| `backend/scripts/` | `migrate.ts` / `seed.ts` DB utilities |
-| `backend/test/` | Node test-runner unit/integration tests |
+| `backend/scripts/` | `migrate.ts` / `seed.ts` / `smoke-endpoints.ts` / `e2e-lifecycle.ts` utilities |
+| `backend/test/` | Node test-runner suites: api, api-contract, auth-service, scoring, credential-hash |
 | `database/` | Postgres schema & reference data |
 | `database/migrations/0001_schema.sql` | Tables (users, invites, modules, progress, credentials, …) |
 | `database/migrations/0002_indexes.sql` | Indexes |
 | `database/migrations/0003_triggers.sql` | Competency/credential eligibility triggers |
 | `database/migrations/0004_rls_and_views.sql` | Row-level security policies + evaluation views |
 | `database/migrations/0005_auth_sessions.sql` | Refresh-token session tables |
+| `database/migrations/0006_audit_origin.sql` | `audit_log` origin columns (`client_ip`, `client_location`) + hardened audit trigger |
 | `database/seed/0001_reference_data.sql` | Reference rows (domains, invite codes, demo content) |
 | `blockchain/` | Hardhat project: Solidity registry + local node + Sepolia deploy |
 | `blockchain/contracts/ImariCredentialRegistry.sol` | `issue` · `revoke` · `reinstate` · `verify` · `get` · `setIssuer` |
@@ -125,6 +126,7 @@ psql -d imari -f database/migrations/0002_indexes.sql
 psql -d imari -f database/migrations/0003_triggers.sql
 psql -d imari -f database/migrations/0004_rls_and_views.sql
 psql -d imari -f database/migrations/0005_auth_sessions.sql
+psql -d imari -f database/migrations/0006_audit_origin.sql
 psql -d imari -f database/seed/0001_reference_data.sql
 # …or: cd backend && npm run db:setup
 
@@ -159,7 +161,7 @@ Demo accounts: student `aline@alustudent.com` · admin `admin@imari.rw` · passw
 | Layer | Command | What it covers |
 |---|---|---|
 | Smart contract | `cd blockchain && npm test` | 8 Hardhat tests: issue, revoke, reinstate, verify-tamper, unknown-id, pause, ownership |
-| Backend | `cd backend && npm test` | Node test-runner suites for scoring/auth/credentials |
+| Backend | `cd backend && npm test` | Node test-runner suites for API routes, auth, scoring and credential hashing |
 | Frontend | `cd frontend && npm run typecheck` / `npm run lint` | `tsc --noEmit` + eslint |
 | E2E (manual) | deploy:local then issue/verify/revoke via UI | end-to-end credential lifecycle |
 

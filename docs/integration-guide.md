@@ -5,7 +5,7 @@ How to move the prototype (browser storage) onto the real stack without changing
 ## 1. Database
 
 1. Create a Supabase project (region closest to Kigali, e.g. `eu-west`).
-2. Apply `database/migrations/0001…0004` in order, then `database/seed/0001_reference_data.sql`.
+2. Apply `database/migrations/0001…0006` in order, then `database/seed/0001_reference_data.sql`.
 3. Import content: each entry in `frontend/src/data/modules.ts` → `modules` (+ `lessons`, `module_objectives`, `activities`, `questions` with `module_id`); `frontend/src/data/questions.ts` → `questions` with `module_id = null`.
 4. Enable Google in Supabase Auth; add `https://<app>/login` as a redirect URL.
 

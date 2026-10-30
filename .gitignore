@@ -9,6 +9,11 @@ coverage/
 .env.*
 !.env.example
 
+# hardhat build output (exports/ stays tracked — backend imports its ABI)
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain-types/
+
 # logs
 logs/
 *.log

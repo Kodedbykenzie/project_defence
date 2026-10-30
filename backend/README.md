@@ -4,18 +4,30 @@ A thin TypeScript service between the React client, Postgres/Supabase and the cr
 
 ```
 backend/
-├── README.md       this guide
-└── openapi.yaml    request/response contract
+├── src/
+│   ├── index.ts          bootstrap: config check, Fastify listen, graceful shutdown
+│   ├── app.ts            app factory — helmet/CORS/rate-limit + all /v1 routes
+│   ├── security.ts       scrypt passwords · JWT HS256 (jose) · reset codes · hashing
+│   ├── auth-plugin.ts    parses `Authorization: Bearer` → request auth claims
+│   ├── config.ts         zod-validated environment
+│   ├── db.ts/errors.ts   pg pool helper · error → HTTP mapping (+ event_logs row)
+│   ├── lib/              credential.ts (canonical hashes) · scoring.ts · watcher.ts (chain events)
+│   ├── routes/           auth, me, assessment, modules, credentials, notifications, admin
+│   └── services/         auth-service.ts · chain-gateway.ts (ethers → registry)
+├── scripts/              migrate · seed · smoke-endpoints · e2e-lifecycle
+├── test/                 node test-runner suites (api, api-contract, auth-service, scoring, credential-hash)
+├── openapi.yaml          request/response contract
+└── README.md             this guide
 ```
 
-## Suggested stack
+## Stack (implemented)
 
 | Concern | Choice |
 |---|---|
-| Runtime | Node 20, Express or Fastify (or Supabase Edge Functions — same contract) |
-| DB | `@supabase/supabase-js` with the service key, or `pg` |
-| Auth | Supabase Auth (email + password, Google OAuth); JWT forwarded as `Authorization: Bearer` |
-| Chain | `ethers@6` → `ImariCredentialRegistry` on Sepolia |
+| Runtime | Node 20 + Fastify 5 (`tsx` in dev, `tsc` build for prod) |
+| DB | `pg` against Postgres / Supabase (`DATABASE_URL`) |
+| Auth | JWT HS256 via `jose` — 15-min access tokens + rotating opaque refresh tokens (server-side sessions, reuse detection); optional Google ID-token sign-in (`GOOGLE_CLIENT_ID`) |
+| Chain | `ethers@6` → `ImariCredentialRegistry` (local Hardhat by default, Sepolia for the pilot) |
 | Validation | `zod` schemas mirroring `frontend/src/types/platform.ts` |
 
 ## Environment

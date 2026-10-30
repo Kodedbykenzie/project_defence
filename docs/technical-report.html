@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Imari — Technical Report</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; line-height: 1.45;
+         max-width: 800px; margin: 32px auto; color: #111; }
+  h1 { font-size: 20pt; margin-bottom: 4px; }
+  h2 { font-size: 15pt; margin-top: 24px; }
+  h3 { font-size: 12.5pt; margin-top: 18px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; }
+  th { background: #f2f2f2; text-align: left; }
+  td, th { border: 1px solid #999; vertical-align: top; padding: 5px 7px; }
+  code { background: #f5f5f5; padding: 1px 4px; font-family: Menlo, monospace; font-size: 9.5pt; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 22px 0; }
+  p { margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>Imari — Personalised Financial Literacy Learning Platform</h1>
+<h2>Technical Report — Final Version of the Product</h2>
+<p><strong>Author:</strong> Precious Chibundu Mozia · <strong>Supervisor:</strong> Thadee Gatera <strong>Repository:</strong> <a href="https://github.com/Kodedbykenzie/project_defence">https://github.com/Kodedbykenzie/project_defence</a> <strong>Walkthrough video:</strong> [PLACEHOLDER — VIDEO LINK] <strong>Date:</strong> 30 October 2026</p>
+<p>Imari is a personalised financial-literacy learning platform for university students in Kigali (ALU pilot). It assesses each learner's financial-literacy level, recommends modules for weak competency domains, tracks progress, and issues blockchain-verifiable micro-credentials once competency criteria are met. This report maps the delivered product against the approved proposal, demonstrates its technical functioning, and documents the engineering practices behind it.</p>
+<hr>
+<h2>1. Scope Alignment &amp; Feature Validation</h2>
+<p>Table 1 evaluates the delivered system against the eleven functional requirements (FR1–FR11) approved in the proposal (Table 5).</p>
+<h3>Table 1. Planned features vs. implementation</h3>
+<table border='1' cellspacing='0' cellpadding='6'>
+<tr><th>Planned feature (FR)</th><th>Intended purpose</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>FR1 — Register, log in/out, profile (invite-only)</td><td>Restrict the pilot to invited students</td><td>Completed</td><td><code>backend/src/routes/auth.ts</code>, <code>auth-service.ts</code>, <code>auth-service.test.ts</code>; invite-code flow demonstrated in the walkthrough video</td></tr>
+<tr><td>FR2 — Diagnostic assessment (15 items, 3 per domain)</td><td>Establish each learner's starting level</td><td>Completed</td><td><code>GET/POST /v1/assessment/*</code>; answers stripped server-side</td></tr>
+<tr><td>FR3 — Total + domain scoring</td><td>Objective basis for placement</td><td>Completed (server-side)</td><td><code>lib/scoring.ts</code>; <code>scoring.test.ts</code> (perfect run = 100; rounding not truncation; empty = 0)</td></tr>
+<tr><td>FR4 — Rule-based recommendations (threshold 60, weakest-first)</td><td>Direct learners to weak areas</td><td>Completed (threshold admin-configurable)</td><td><code>weakDomains</code> rule + boundary tests (60 exactly is not weak); <code>PUT /v1/admin/settings/threshold</code></td></tr>
+<tr><td>FR5/FR6 — Modules, lessons, activities, quizzes, resources</td><td>Deliver learning content</td><td>Completed — 5 seeded modules</td><td><code>GET /v1/modules/:slug</code>; admin course editor</td></tr>
+<tr><td>FR7 — Track completion, quiz results, progress</td><td>Prove engagement; gate credentials</td><td>Completed (DB trigger)</td><td><code>0003_triggers.sql</code> — <code>completed</code> only when lessons + activity + passing quiz exist</td></tr>
+<tr><td>FR8 — Feedback + recommendation relevance ratings</td><td>Input for evaluation metrics</td><td>Completed</td><td><code>POST /v1/modules/:slug/feedback</code>; <code>recommendations.relevance</code></td></tr>
+<tr><td>FR9 — Admin manages modules, questions, reports</td><td>Course ops without DB access</td><td>Completed</td><td><code>/v1/admin/*</code> (invites, roster, editor, threshold, metrics, audit log)</td></tr>
+<tr><td>FR10 — Issue/share/verify/revoke micro-credential</td><td>Tamper-evident proof of competency</td><td>Completed</td><td><code>ImariCredentialRegistry.sol</code>; 8 Hardhat tests; live lifecycle proof; public <code>/verify/:id</code></td></tr>
+<tr><td>FR11 — Record technical events for evaluation</td><td>Feed Table 7 metrics (accuracy, latency, errors)</td><td><strong>Partial — instrumentation complete, pilot data pending</strong></td><td><code>event_logs</code>, <code>v_knowledge_gain</code>, <code>v_recommendation_accuracy</code>, <code>v_credential_health</code>; <code>recommendation_ms</code>, <code>duration_ms</code>, <code>latency_ms</code> columns populated at runtime</td></tr>
+</table>
+<p><strong>Scope-change justifications.</strong> (1) *Supabase Auth → custom JWT auth:* the proposal allowed "PostgreSQL via Supabase <strong>or a simple backend service</strong>"; own Fastify auth (HS256 access tokens + rotating refresh tokens with stolen-token detection) gives role checks and no vendor lock while Postgres remains the data store. (2) *FR11 partial:* the proposal's own SDLC (§3.2.1) places evaluation <strong>after</strong> development — iteration 3 delivers "credential feature and evaluation logging", which is done; the paired t-test/Wilcoxon analysis requires the ~30-participant pilot, i.e. the study phase. (3) *Google sign-in disabled in dev* (<code>GOOGLE_CLIENT_ID</code> optional) — a deployment choice, not a scope cut. (4) *MetaMask not required:* verification is read-only and the backend signs issuance, so no student needs a wallet.</p>
+<hr>
+<h2>2. Technical Product Demonstration</h2>
+<h3>2.1 Core functionality</h3>
+<p>The end-to-end flow demonstrated in the walkthrough video is: invite-based registration → onboarding (language EN/FR/RW, text size, consent) → 15-item diagnostic → server-side scoring → threshold recommendations → lessons/activities/quizzes → progress → credential issuance → public verification. Three technical points distinguish the implementation: <strong>(a)</strong> scoring and the recommendation rule run on the server, so the accuracy metric is computed against one implementation and cannot be gamed in the browser; <strong>(b)</strong> credential eligibility is enforced by a database trigger (<code>credentials_eligibility</code>), making the competency rule an invariant of the data layer rather than a UI check; <strong>(c)</strong> only <code>keccak256(credentialId)</code>, a <code>contentHash</code> of the canonical payload <code>id|learnerId|moduleId|competency|issuedAt</code>, and a status (None/Valid/Revoked) are written on-chain — names, scores and answers never leave Postgres.</p>
+<h3>2.2 Backend/frontend interaction and data handling</h3>
+<p>All requests travel as JSON under the <code>/v1</code> prefix with <code>Authorization: Bearer &lt;JWT&gt;</code>; request bodies are validated with zod schemas mirroring <code>frontend/src/types/platform.ts</code>. Errors follow a stable taxonomy: <code>401</code> (auth), <code>409</code> with a code for business-rule conflicts raised by DB triggers (<code>INVITE_EXPIRED</code>, <code>COMPETENCY_NOT_MET</code>), <code>422</code> for validation, <code>429</code> for rate limits, <code>500</code> with an <code>event_logs</code> row for defects. Sessions use 15-minute access tokens plus opaque refresh tokens stored only as SHA-256 hashes and rotated on every use; reuse of a revoked token revokes all of the user's sessions. Persistence was verified by direct SQL inspection of <code>credentials</code> (real <code>tx_hash</code>, <code>block_number</code>, <code>status</code>) after issuance.</p>
+<h3>2.3 Testing with different inputs</h3>
+<table border='1' cellspacing='0' cellpadding='6'>
+<tr><th>Input / condition</th><th>Expected behaviour</th><th>Result</th></tr>
+<tr><td>Diagnostic submitted entirely blank</td><td>Score 0, no division-by-zero</td><td>✅ pass (<code>scoring.test.ts</code>)</td></tr>
+<tr><td>All answers correct</td><td>100 overall and per domain</td><td>✅ pass</td></tr>
+<tr><td>Domain score exactly 60 with threshold 60</td><td>Domain <strong>not</strong> weak (boundary is <code>&lt;</code>)</td><td>✅ pass (<code>weakDomains</code> test)</td></tr>
+<tr><td>Domain score 59</td><td>Weak, ordered first among recommendations</td><td>✅ pass</td></tr>
+<tr><td>Missing/garbage JWT on <code>/v1/me</code></td><td><code>401</code></td><td>✅ verified (401)</td></tr>
+<tr><td>Expired or revoked invite code</td><td><code>409 INVITE_EXPIRED</code> / <code>INVITE_REVOKED</code>, friendly message</td><td>✅ pass</td></tr>
+<tr><td>Credential issued before competency met</td><td><code>409 COMPETENCY_NOT_MET</code> (trigger refuses)</td><td>✅ pass</td></tr>
+<tr><td>Duplicate <code>issue()</code> on-chain</td><td>Reverts <code>AlreadyIssued</code></td><td>✅ pass (Hardhat)</td></tr>
+<tr><td><code>verify()</code> with a tampered hash</td><td><code>(Valid, false)</code> — alteration detected</td><td>✅ pass, live proof</td></tr>
+<tr><td><code>verify()</code> unknown credential ID</td><td><code>(None, false)</code> → "not found"</td><td>✅ pass</td></tr>
+<tr><td>Revoked credential verified</td><td><code>revoked</code>, never "valid"</td><td>✅ pass</td></tr>
+<tr><td>Chain node stopped during issuance</td><td>Credential stays <code>pending</code>; UI shows "Confirming…"; no crash</td><td>✅ graceful-degradation path</td></tr>
+</table>
+<h3>2.4 Testing strategies</h3>
+<p><strong>Strategy 1 — Automated unit and integration testing.</strong> *Why:* the riskiest logic (scoring, threshold rules, auth, the contract) is deterministic, so automated suites give objective, instantly repeatable regression evidence that manual checking cannot. *How:* <code>cd backend &amp;&amp; npm test</code> (Node test runner with DB-backed integration) and <code>cd blockchain &amp;&amp; npm test</code> (8 Hardhat tests on a simulated EVM), plus <code>npm run typecheck</code> and <code>npm run lint</code>. *Results:* backend <strong>97 tests / 19 suites, 0 failures (~3.8 s)</strong>; contract <strong>8/8</strong> (issue, duplicate, tamper-detection, revoke, reinstate, unknown-id, pause, ownership); typecheck clean; lint 0 errors. *Improvement made afterwards:* manual functional testing exposed a session-state bug — after an API logout a stale offline-fallback session kept the UI "signed in" while API calls returned 401. Fixed in <code>AuthContext.logout</code> (both sessions now cleared), re-verified with typecheck + lint and a full login/issue/logout pass.</p>
+<p><strong>Strategy 2 — End-to-end functional testing.</strong> *Why:* unit tests cannot prove the four subsystems (frontend → API → Postgres → chain) interoperate; the credential feature spans all four. *How:* <code>npm run smoke</code> signs in as the demo student, the credential-eligible student and an admin and exercises every endpoint including credential issuance, then deletes everything it created (safe to re-run); a scripted UI walkthrough (<code>frontend/scripts/e2e-walkthrough.mjs</code>) and the manual lifecycle complete the evidence. *Results:* all endpoints pass under both roles; the live chain lifecycle returned <code>(Valid, true)</code> for the correct hash, <code>(Valid, false)</code> for a tampered hash, <code>(Revoked, false)</code> after revocation and <code>(Valid, true)</code> after reinstatement, with the DB row carrying a real transaction hash and block number. *Improvement made afterwards:* the same run exposed documentation drift (docs claimed 7 contract tests and a non-existent migration file); all documentation was corrected and now verified against the code.</p>
+<h3>2.4.1 Performance and compatibility</h3>
+<table border='1' cellspacing='0' cellpadding='6'>
+<tr><th>Dimension</th><th>Measurement</th><th>Result</th></tr>
+<tr><td>Build</td><td><code>npm run build</code> (Vite, production)</td><td>3.07 s; index.html 0.76 kB, CSS 50.29 kB (9.19 gzip), JS 131.74 kB (51.36 gzip) + 948.81 kB (<strong>291.53 kB gzip</strong>) ≈ <strong>353 kB gzip total</strong>; the &gt;500 kB chunk warning is a documented improvement target (code-splitting)</td></tr>
+<tr><td>API latency (local, n=26)</td><td><code>avg(assessment_attempts.recommendation_ms)</code></td><td><strong>2.0 ms</strong> mean recommendation generation</td></tr>
+<tr><td>Verification latency (local, n=19)</td><td><code>avg(credential_verifications.latency_ms)</code></td><td><strong>4.7 ms</strong> mean credential verification</td></tr>
+<tr><td>Automated suites</td><td>wall-clock</td><td>backend 3.8 s (97 tests); contract 0.5 s (8 tests)</td></tr>
+<tr><td>Browsers</td><td>login + diagnostic pass/fail</td><td>Chrome ✅ [PLACEHOLDER — Safari / Firefox results]</td></tr>
+<tr><td>Devices</td><td>viewport + real device</td><td>[PLACEHOLDER — emulation / device model + OS]</td></tr>
+<tr><td>Throttling</td><td>4×/6× CPU + Slow 3G</td><td>[PLACEHOLDER — diagnostic submit result]</td></tr>
+<tr><td>Lighthouse</td><td>desktop / mobile</td><td>[PLACEHOLDER — scores]</td></tr>
+</table>
+<p>Degradation behaviour was tested explicitly: stopping the backend yields clear error states rather than a white screen, and stopping the chain leaves credentials <code>pending</code> for later re-anchoring (documented fallback in the deployment plan).</p>
+<hr>
+<h2>3. Code Quality and Technical Implementation</h2>
+<h3>3.1 Structure and modularity</h3>
+<p>The repository is a four-package monorepo — <code>frontend/</code> (React 18 + TypeScript + Vite + Tailwind, 10,414 LOC), <code>backend/</code> (Fastify 5, 4,551 LOC), <code>blockchain/</code> (Solidity 0.8.24 + Hardhat, 106 LOC), <code>database/</code> (6 migrations, 34 tables) — each with its own README. The backend separates HTTP/routes (7 domain modules) from services (<code>auth-service</code>, <code>chain-gateway</code>), pure helpers (<code>scoring</code>, <code>credential</code>, <code>watcher</code>) and data access (<code>db.ts</code>); the frontend separates <code>pages/</code>, <code>components/</code>, <code>contexts/</code> (Auth, Platform, Preferences), <code>utils/</code> and <code>types/</code>. There are no monolithic scripts: no file mixes transport, business logic and persistence.</p>
+<h3>3.2 OOP and design principles</h3>
+<table border='1' cellspacing='0' cellpadding='6'>
+<tr><th>Principle</th><th>Where it applies</th></tr>
+<tr><td>Encapsulation</td><td>The contract's <code>Record</code> mapping is <code>private</code> — state can change only through <code>issue/revoke/reinstate</code>, so invariants are enforced inside the contract; password/token internals are hidden behind <code>security.ts</code></td></tr>
+<tr><td>Abstraction</td><td><code>POST /v1/modules/:slug/credential</code> hides hashing, transaction submission and retry behind one operation; <code>verifyLive()</code> hides a three-tier lookup (API → direct chain → offline) behind one call; a 6-function surface over contract storage</td></tr>
+<tr><td>Separation of concerns / modularity</td><td>Route → service → helper → data-access layering; contexts split by state domain; migrations split into schema/indexes/triggers/RLS/sessions/audit</td></tr>
+<tr><td>Inheritance vs. composition</td><td>The proposal's UML <code>User → Student/Administrator</code> maps to a <code>role</code> column plus middleware authorization (<code>self</code>/<code>student</code>/<code>admin</code>/<code>public</code>) — composition over inheritance, matching the single-table SQL design and avoiding fragile hierarchies</td></tr>
+<tr><td>Polymorphism</td><td>One <code>Modal</code> component renders as a bottom sheet below 768 px; verification outcomes are a discriminated union (<code>valid</code>/<code>mismatch</code>/<code>revoked</code>/<code>not_found</code>); <strong><code>ChainGateway</code> interface with <code>EthersChainGateway</code> (real) and <code>SimulatedChainGateway</code> (mock) implementations selected by a runtime factory — routes depend only on the interface, so the chain can be swapped without touching them (dependency inversion; open/closed)</strong></td></tr>
+<tr><td>Reusability</td><td>Shared UI primitives, <code>useLearner</code>/<code>useNotifications</code> hooks, zod schemas reused across routes, i18n dictionary, canonical-hash helpers</td></tr>
+</table>
+<h3>3.3 Algorithms and technical problem-solving</h3>
+<table border='1' cellspacing='0' cellpadding='6'>
+<tr><th>Problem</th><th>Technique</th><th>Why it fits</th></tr>
+<tr><td>Recommendation engine</td><td>Single-pass per-domain counting → percentage → threshold <code>&lt;60</code> → stable sort ascending (weakest first); O(D + M log M)</td><td>The proposal required a deterministic rule model, not ML: transparent, explainable and directly testable against ground truth; boundary behaviour unit-tested</td></tr>
+<tr><td>Scoring</td><td>One pass over answers, integer rounding, empty-domain guard</td><td>Correctness proven by tests (overall computed from items, not the mean of domain scores)</td></tr>
+<tr><td>Tamper-proof credentials</td><td>Canonical payload → <code>keccak256</code> → <code>idHash</code> + <code>contentHash</code>; verification is an O(1) comparison against the anchored hash</td><td>Verification needs no personal data; any alteration necessarily changes the hash</td></tr>
+<tr><td>Session security</td><td>Opaque refresh tokens (SHA-256 at rest), rotation per use, reuse detection cascades to all sessions</td><td>Stateless access tokens plus server-side revocability</td></tr>
+<tr><td>Race-safe invite redemption</td><td><code>SELECT … FOR UPDATE</code> row lock inside one transaction</td><td>Two concurrent redemptions of a single-use code cannot both succeed</td></tr>
+<tr><td>Chain ↔ DB reconciliation</td><td>Watcher matches <code>keccak256(credentials.id)</code> to the event's indexed <code>idHash</code> (O(1))</td><td>DB stays authoritative for data, chain for status</td></tr>
+<tr><td>Rate limiting &amp; password KDF</td><td>Sliding-window limiter (global + stricter auth bucket); scrypt N=16384, r=8</td><td>Brute-force resistance without native dependencies</td></tr>
+<tr><td>Evaluation metrics</td><td>SQL views compute paired pre/post differences, accuracy %, credential health</td><td>Analysis-ready with one query after the pilot</td></tr>
+</table>
+<h3>3.4 Readability and maintainability</h3>
+<p>Conventional commit messages (feat/fix/docs/test/chore across 18+ commits), consistent naming (<code>getX</code>/<code>setX</code>, route-module files named after their domain), zod schemas as the single interface contract shared by validation and documentation (<code>backend/openapi.yaml</code>), doc comments on the contract's public surface, and five READMEs plus an integration guide. Secrets are untracked (<code>.env</code> gitignored; <code>.env.example</code> shipped) and build output is excluded.</p>
+<hr>
+<h2>4. Conclusion and limitations</h2>
+<p>Imari delivers all eleven approved functional requirements except FR11's analysis phase, which awaits the planned pilot: ten are fully implemented and one is instrumented and logging. The strongest technical results are the deterministic, unit-tested recommendation rule, credential eligibility enforced as a database invariant, and an on-chain anchoring layer whose tamper-detection, revocation and reinstatement behaviours were proven live. Testing combines 105 automated tests (97 backend + 8 contract) with end-to-end functional and input-variation testing; recommendation generation averages 2.0 ms and verification 4.7 ms in the local environment.</p>
+<p>Honest limitations: the evaluation metrics are instrumented but carry no pilot data yet; the chain demonstrated is a local Hardhat node running the identical contract that targets Sepolia (testnet — no mainnet, tokens or NFTs); browser/device/Lighthouse results are reported in §2.4.1 where marked; and the main JS chunk (291 kB gzip) needs code-splitting before wide mobile rollout. These match the scope limits already stated in the proposal (§3.6).</p>
+<hr>
+<p><em>Report prepared for the capstone submission "Final Version of the Product". Evidence commands and file references are reproducible from the repository README.</em></p>
+</body>
+</html>

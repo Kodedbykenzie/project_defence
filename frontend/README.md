@@ -23,7 +23,7 @@ frontend/
 
 ## Commands
 
-Run from the repo root (npm workspace) or from `frontend/`:
+Run from `frontend/` (each package installs its own dependencies — there is no root workspace):
 
 ```bash
 npm run dev       # vite dev server
