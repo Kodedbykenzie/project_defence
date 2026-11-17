@@ -19,12 +19,12 @@ import { query, withTx } from '../src/db.js';
 import { contentHash } from '../src/lib/credential.js';
 import { initialModules } from '../../frontend/src/data/modules.js';
 import { diagnosticQuestions } from '../../frontend/src/data/questions.js';
-import { seedLearners, seedInvites } from '../../frontend/src/data/seed.js';
+import { seedLearners, seedInvites, DEMO_PASSWORD, DEMO_STUDENT_EMAIL } from '../../frontend/src/data/seed.js';
 
 // Admin account config — read from backend env vars (fall back to defaults)
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@imari.rw';
 const ADMIN_NAME = process.env.ADMIN_NAME ?? 'Precious Mozia';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'demo1234';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? DEMO_PASSWORD;
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -148,10 +148,16 @@ async function seedContent(): Promise<Map<string, string>> {
   // Diagnostic items (module_id NULL)
   for (let i = 0; i < diagnosticQuestions.length; i++) {
     const q = diagnosticQuestions[i]!;
+    // `questions` has no unique constraint on this natural key, so
+    // `on conflict do nothing` would never stop a duplicate on a partial
+    // re-seed. Guard explicitly instead.
     await query(
       `insert into questions (domain_id, module_id, prompt, options, answer_index, explanation, position)
-       values ($1, null, $2, $3, $4, $5, $6)
-       on conflict do nothing`,
+       select $1, null, $2, $3, $4, $5, $6
+       where not exists (
+         select 1 from questions
+         where module_id is null and domain_id = $1 and position = $6
+       )`,
       [q.domain, q.prompt, JSON.stringify(q.options), q.answer, q.explanation, i],
     );
   }
@@ -160,17 +166,23 @@ async function seedContent(): Promise<Map<string, string>> {
 }
 
 async function seedAccounts(): Promise<Map<string, string>> {
-  const userIdByEmail = new Map<string, string>();const passwordHash = await hashPassword(ADMIN_PASSWORD);
+  const userIdByEmail = new Map<string, string>();
 
+  // Only the admin is seeded here. Demo students (including Aline) are seeded
+  // from `seedLearners` below so they get a profile, programme, preferences and
+  // the joinedAt-based created_at defined in the frontend's canonical data.
   const accounts = [
-    { name: ADMIN_NAME, email: ADMIN_EMAIL, role: 'admin', university: 'African Leadership University' },
-    { name: 'Aline Uwimana', email: 'aline@alustudent.com', role: 'student', university: 'African Leadership University' },
-];
+    { name: ADMIN_NAME, email: ADMIN_EMAIL, role: 'admin', university: 'African Leadership University', password: ADMIN_PASSWORD },
+  ];
   for (const a of accounts) {
+    const passwordHash = await hashPassword(a.password);
     const { rows } = await query<{ id: string }>(
       `insert into users (email, password_hash, provider, role, full_name, email_verified_at)
        values ($1, $2, 'password', $3, $4, now())
-       on conflict (email) do update set full_name = excluded.full_name
+       on conflict (email) do update
+         set full_name     = excluded.full_name,
+             password_hash = excluded.password_hash,
+             role          = excluded.role
        returning id`,
       [a.email, passwordHash, a.role, a.name],
     );
@@ -183,10 +195,10 @@ async function seedAccounts(): Promise<Map<string, string>> {
       [rows[0]!.id, a.university, a.role],
     );
   }
-  console.log(`  ✓ demo accounts (${ADMIN_PASSWORD} for both)`);
+  console.log(`  ✓ demo accounts (admin: ${ADMIN_PASSWORD}, student: ${DEMO_PASSWORD})`);
 
-  // Demo learners (students only, password for the cohort)
-  const cohortHash = await hashPassword(ADMIN_PASSWORD);
+  // Demo learners (students only — use the canonical frontend demo password)
+  const cohortHash = await hashPassword(DEMO_PASSWORD);
   for (const l of seedLearners) {
     if (userIdByEmail.has(l.email)) continue;
     const { rows } = await query<{ id: string }>(
@@ -322,12 +334,18 @@ async function seedAttemptsAndProgress(
           prog.status === 'completed',
         ],
       );
-      // quiz attempt history so Results pages show scores
+      // Quiz attempt history so Results pages show scores. `quiz_attempts`
+      // has no unique constraint, so an `on conflict` clause would not stop
+      // this block from duplicating every score on each re-seed; guard on the
+      // natural (user, module, score) key instead.
       for (const s of prog.quizScores) {
         await query(
           `insert into quiz_attempts (user_id, module_id, answers, score, passed, created_at)
-           values ($1, $2, '{}'::smallint[], $3, $4, now())
-           on conflict do nothing`,
+           select $1, $2, '{}'::smallint[], $3, $4, now()
+           where not exists (
+             select 1 from quiz_attempts
+             where user_id = $1 and module_id = $2 and score = $3
+           )`,
           [userId, moduleId, s, s >= 67],
         );
       }
@@ -407,7 +425,7 @@ const ELIGIBLE_SLUG = 'borrowing-wisely';
  * deletes it again, which keeps this account reusable.
  */
 async function seedEligibleLearner(): Promise<void> {
-  const passwordHash = await hashPassword(ADMIN_PASSWORD);
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
   const { rows } = await query<{ id: string }>(
     `insert into users (email, password_hash, provider, role, full_name, email_verified_at)
      values ($1, $2, 'password', 'student', $3, now())
@@ -477,9 +495,9 @@ async function main(): Promise<void> {
   await seedCredentials(userIdByEmail, slugByModuleId);
   await seedEligibleLearner();
   console.log('Seed complete.');
-  console.log('  student: aline@alustudent.com / ' + ADMIN_PASSWORD);
-  console.log('  eligible: ' + ELIGIBLE_EMAIL + ' / ' + ADMIN_PASSWORD + ' (' + ELIGIBLE_SLUG + ')');
-  console.log('  admin:   admin@imari.rw / ' + ADMIN_PASSWORD);
+  console.log('  student: ' + DEMO_STUDENT_EMAIL + ' / ' + DEMO_PASSWORD);
+  console.log('  eligible: ' + ELIGIBLE_EMAIL + ' / ' + DEMO_PASSWORD + ' (' + ELIGIBLE_SLUG + ')');
+  console.log('  admin:   ' + ADMIN_EMAIL + ' / ' + ADMIN_PASSWORD);
   console.log('  invite:  ALU-PILOT');
 }
 
