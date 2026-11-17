@@ -244,7 +244,12 @@ npx tsx scripts/migrate.ts
 npx tsx scripts/seed.ts
 ```
 
-This creates tables, inserts reference data (including `ALU-PILOT` invite), and sets up demo content.
+This creates tables, inserts reference data (including `ALU-PILOT` invite), and sets up **demo content including the admin account**:
+
+- **Admin**: `admin@imari.rw` / `demo1234` (password configurable via `ADMIN_PASSWORD` env var in backend)
+- **Student**: `aline@alustudent.com` / `demo1234`
+
+The admin is created by default from backend env vars (`ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD`). Override them in the Railway backend service variables or `backend/.env` to customize.
 
 ### Step 5: Deploy
 
