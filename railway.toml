@@ -1,0 +1,17 @@
+version 2
+
+[backend]
+  # Railway will auto-detect this as a Node.js service
+  # It runs: npm run build && npm run start
+  # Or uses the startCommand if specified
+
+[frontend]
+  # Railway will auto-detect this as a Node.js service
+  # It will run: npm run build (Vite) then serve static files
+  # The built output goes to dist/
+
+[allocations]
+  # Optional: specify resource allocations
+  # backend:
+  #   cpu: 1.0
+  #   memory: 1GB

@@ -3,7 +3,7 @@ import type { Account, AppNotification, Invite, Learner, SeedCredential } from '
 export const DEMO_INVITE_CODE = 'ALU-PILOT';
 
 export const seedInvites: Invite[] = [
-{ id: 'inv-1', code: DEMO_INVITE_CODE, note: 'ALU cohort · open code', maxUses: 50, uses: 7, createdAt: '2026-09-10T08:00:00.000Z', expiresAt: '2026-10-31T23:59:00.000Z', revoked: false, redeemedBy: [
+{ id: 'inv-1', code: DEMO_INVITE_CODE, note: 'ALU cohort · open code', maxUses: 50, uses: 7, createdAt: '2026-09-10T08:00:00.000Z', expiresAt: '2027-02-28T23:59:00.000Z', revoked: false, redeemedBy: [
   { id: 'u-diane', name: 'Diane Uwase', at: '2026-09-11T14:00:00.000Z' },
   { id: 'u-eric', name: 'Eric Mugisha', at: '2026-09-12T10:00:00.000Z' },
   { id: 'u-sandrine', name: 'Sandrine Mukamana', at: '2026-09-12T13:00:00.000Z' },

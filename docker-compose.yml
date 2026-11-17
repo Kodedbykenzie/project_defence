@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  # Backend API service
+  backend:
+    build: ./backend
+    container_name: imari-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - backend/.env
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SEPOLIA_RPC_URL=${SEPOLIA_RPC_URL}
+      - ISSUER_PRIVATE_KEY=${ISSUER_PRIVATE_KEY}
+      - CREDENTIAL_CONTRACT_ADDRESS=${CREDENTIAL_CONTRACT_ADDRESS}
+
+  # PostgreSQL database
+  database:
+    image: postgres:15-alpine
+    container_name: imari-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=imari
+      - POSTGRES_USER=imari_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+  # Frontend (serve via nginx)
+  frontend:
+    build: ./frontend
+    container_name: imari-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://backend:4000/v1
+      - VITE_CONTRACT_ADDRESS=${VITE_CONTRACT_ADDRESS}
+      - VITE_RPC_URL=${VITE_RPC_URL}
+
+volumes:
+  postgres_data:

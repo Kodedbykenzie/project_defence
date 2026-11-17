@@ -5,8 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2Icon, EyeIcon, EyeOffIcon, GraduationCapIcon, LockIcon, MailIcon, TicketIcon, UserIcon, XCircleIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthTabs } from '../../components/auth/AuthTabs';
-import { GoogleButton } from '../../components/auth/GoogleButton';
-import { GoogleAccountModal } from '../../components/auth/GoogleAccountModal';
+
 import { TextInput } from '../../components/auth/TextInput';
 import { PasswordStrength, passwordScore } from '../../components/auth/PasswordStrength';
 import { Spinner } from '../../components/ui/Spinner';
@@ -22,7 +21,7 @@ type Errors = Partial<Record<'name' | 'email' | 'password' | 'consent' | 'form',
 type CodeState = {status: 'idle' | 'checking';} | {status: 'valid';invite: Invite;} | {status: 'invalid';error: string;};
 
 export function Register() {
-  const { register, loginWithGoogle } = useAuth();
+  const { register } = useAuth();
   const { checkInvite } = usePlatform();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -32,7 +31,7 @@ export function Register() {
   const [show, setShow] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
-  const [googleOpen, setGoogleOpen] = useState(false);
+  
 
   useEffect(() => {
     const c = normaliseCode(code);
@@ -126,10 +125,6 @@ export function Register() {
           className="overflow-hidden">
           
             <div className="pt-4">
-              <GoogleButton label="Sign up with Google" onClick={() => setGoogleOpen(true)} disabled={loading} />
-              <div className="my-4 flex items-center gap-3 text-xs text-faint">
-                <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-              </div>
               <form onSubmit={onSubmit} className="space-y-3" noValidate>
                 <div>
                   <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-ink">
@@ -213,16 +208,6 @@ export function Register() {
         }
       </AnimatePresence>
 
-      <GoogleAccountModal
-        open={googleOpen}
-        onClose={() => setGoogleOpen(false)}
-        onSelect={(e, n) => {
-          const r = loginWithGoogle(e, n, invite?.code);
-          setGoogleOpen(false);
-          if (!r.ok) return setErrors({ form: r.error });
-          toast.success(r.isNew ? 'Account created' : `Welcome back, ${r.user.name.split(' ')[0]}`);
-          navigate(r.isNew ? '/onboarding' : r.user.role === 'admin' ? '/admin' : '/app', { replace: true });
-        }} />
       
     </div>);
 

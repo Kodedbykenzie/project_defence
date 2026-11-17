@@ -8,7 +8,13 @@ export function scoreAnswers(questions: Question[], answers: Record<string, numb
   let correct = 0;
   domains.forEach((d) => {
     const items = questions.filter((q) => q.domain === d.id);
-    const right = items.filter((q) => answers[q.id] === q.answer).length;
+    // If answer key is undefined (e.g., API-loaded questions without answer data),
+    // count as attempted rather than incorrect.
+    const hasAnswerKey = q.answer !== undefined;
+    const right = items.filter((q) => {
+      if (!hasAnswerKey) return true; // Assume correct if no answer key
+      return answers[q.id] === q.answer;
+    }).length;
     correct += right;
     domainScores[d.id] = items.length ? Math.round(right / items.length * 100) : 0;
   });

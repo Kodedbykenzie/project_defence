@@ -15,12 +15,11 @@ interface RegisterInput {
   inviteCode: string;
 }
 
-type AuthResult = {ok: true;user: SessionUser;isNew?: boolean;} | {ok: false;error: string;needsInvite?: boolean;};
+type AuthResult = {ok: true;user: SessionUser;isNew?: boolean;} | {ok: false;error: string;};
 
 interface AuthValue {
   user: SessionUser | null;
   login: (email: string, password: string) => AuthResult;
-  loginWithGoogle: (email: string, name: string, inviteCode?: string) => AuthResult;
   register: (input: RegisterInput) => AuthResult;
   resetPassword: (email: string, password: string) => boolean;
   logout: () => void;
@@ -54,10 +53,6 @@ function messageFor(err: unknown, fallback: string): string {
         return 'That invite was issued for a different email address.';
       case 'EMAIL_TAKEN':
         return 'This email already has an account.';
-      case 'NEEDS_INVITE':
-        return 'Join with an invite code to create a Google account.';
-      case 'GOOGLE_DISABLED':
-        return 'Google sign-in is not available on this deployment.';
       default:
         return err.message || fallback;
     }
@@ -132,20 +127,7 @@ export function AuthProvider({ children }: {children: ReactNode;}) {
         return { ok: true, user: strip(account) };
       },
 
-      loginWithGoogle: async (email, name, inviteCode) => {
-        if (API_CONFIGURED) {
-          return { ok: false, error: 'Google sign-in is handled by the API — continue with your email and password.' };
-        }
-        const existing = accounts.find((a) => normalise(a.email) === normalise(email));
-        if (existing) {
-          setSessionId(existing.id);
-          return { ok: true, user: strip(existing) };
-        }
-        if (!inviteCode) return { ok: false, error: 'No account yet. Join with an invite code.', needsInvite: true };
-        const check = platform.checkInvite(inviteCode, email);
-        if (!check.ok) return { ok: false, error: check.error };
-        return { ok: true, user: strip(create(name, email, '', 'google', 'African Leadership University', check.invite.code)), isNew: true };
-      },
+
 
       register: async (input) => {
         if (API_CONFIGURED) {

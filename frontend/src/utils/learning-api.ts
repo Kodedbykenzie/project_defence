@@ -107,7 +107,7 @@ export function toResource(row: ApiModuleDetail['resources'][number]): Resource 
   return { title: row.title, source: row.source ?? '', url: row.url };
 }
 
-/** A diagnostic question. The answer key is never sent to a student. */
+/** A diagnostic question. The answer key is stored in the question data. */
 export function toQuestion(row: { id: string; domain: string; prompt: string; options: string[] }): Question {
   return {
     id: row.id,

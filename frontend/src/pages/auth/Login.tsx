@@ -4,8 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthTabs } from '../../components/auth/AuthTabs';
-import { GoogleButton } from '../../components/auth/GoogleButton';
-import { GoogleAccountModal } from '../../components/auth/GoogleAccountModal';
+
 import { TextInput } from '../../components/auth/TextInput';
 import { Spinner } from '../../components/ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,7 +13,7 @@ import { homeFor } from '../../utils/format';
 import { primaryButton } from '../../utils/styles';
 
 export function Login() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as {from?: string;} | null)?.from;
@@ -23,7 +22,7 @@ export function Login() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleOpen, setGoogleOpen] = useState(false);
+  
 
   const go = (role: 'student' | 'admin', name: string) => {
     toast.success(`Welcome back, ${name.split(' ')[0]}`);
@@ -55,12 +54,10 @@ export function Login() {
       <p className="mt-1 text-sm text-muted">Sign in to continue learning.</p>
 
       <div className="mt-5">
-        <GoogleButton label="Continue with Google" onClick={() => setGoogleOpen(true)} disabled={loading} />
+  
       </div>
 
-      <div className="my-4 flex items-center gap-3 text-xs text-faint">
-        <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-      </div>
+
 
       <form onSubmit={onSubmit} className="space-y-3" noValidate>
         <div>
@@ -120,18 +117,7 @@ export function Login() {
         </button>
       </div>
 
-      <GoogleAccountModal
-        open={googleOpen}
-        onClose={() => setGoogleOpen(false)}
-        onSelect={(e, n) => {
-          const r = loginWithGoogle(e, n);
-          setGoogleOpen(false);
-          if (r.ok) return go(r.user.role, r.user.name);
-          if (r.needsInvite) {
-            toast('No account yet', { description: 'Join with your invite code.' });
-            navigate('/register');
-          } else setError(r.error);
-        }} />
+      
       
     </div>);
 
