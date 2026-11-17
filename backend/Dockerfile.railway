@@ -7,8 +7,16 @@ RUN cd backend && npm ci
 COPY backend backend
 COPY blockchain/exports blockchain/exports
 COPY database database
+# The seed script reads the frontend's canonical content files (modules,
+# questions, seed data). Without this copy, `npm run db:seed` inside the
+# container fails with "Cannot find module '../../frontend/src/data/...'".
+# The data files only have `import type` dependencies, so no other frontend
+# directories are needed at runtime.
+COPY frontend/src/data frontend/src/data
 RUN cd backend && npm run build
 WORKDIR /repo/backend
 ENV NODE_ENV=production
-# Apply pending migrations (idempotent, tracked in schema_migrations), then start.
-CMD ["sh", "-c", "npx tsx scripts/migrate.ts && node dist/index.js"]
+# Apply pending migrations (idempotent, tracked in schema_migrations), seed the
+# demo content/accounts (also idempotent), then start. Seeding here means a fresh
+# Railway deployment is usable without a manual terminal step.
+CMD ["sh", "-c", "npx tsx scripts/migrate.ts && npx tsx scripts/seed.ts && node dist/index.js"]

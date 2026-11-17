@@ -95,7 +95,7 @@ In the Railway dashboard, add a **Node.js service** and name it `frontend`. Then
 
 | Variable | Value | Required |
 |---|---|---|
-| `VITE_API_URL` | `https://your-backend.up.railway.app/v1` | ✅ |
+| `VITE_API_URL` | `https://your-backend.up.railway.app` | ✅ |
 | `VITE_CONTRACT_ADDRESS` | Leave empty for simulate mode, or set Sepolia address | optional |
 | `VITE_RPC_URL` | Leave empty for simulate mode | optional |
 
@@ -127,7 +127,7 @@ flowchart LR
 
 | From | To | Protocol | Purpose |
 |---|---|---|---|
-| `frontend` | `backend` | HTTPS `/v1/*` | All API requests (auth, modules, credentials, admin) |
+| `frontend` | `backend` | HTTPS | All API requests (auth, modules, credentials, admin) — backend prefixes `/v1` |
 | `backend` | PostgreSQL | `postgres` protocol (`pg`) | Read/write user data, invites, credentials, progress |
 | `backend` | Ethereum Sepolia | JSON-RPC (via ethers.js) | Anchor credentials on-chain (issue, revoke, verify) |
 | `frontend` | Etherscan | HTTPS | View transaction links in verification UI (`/verify/:id`) |
@@ -151,7 +151,7 @@ await app.register(cors, {
 ```
 
 - `APP_ORIGIN` **must** include your frontend's full Railway URL (e.g., `https://imari-frontend.up.railway.app`)
-- The frontend `VITE_API_URL` should point to `https://your-backend.up.railway.app/v1`
+- The frontend `VITE_API_URL` should point to `https://your-backend.up.railway.app` (no `/v1` suffix — the backend prefixes routes with `/v1`)
 
 ---
 
@@ -176,7 +176,7 @@ This must exactly match the frontend URL, including the protocol (`https://`) an
 
 ```env
 # In frontend/.env (Railway variables)
-VITE_API_URL="https://backend.up.railway.app/v1"
+VITE_API_URL="https://backend.up.railway.app"
 ```
 
 ---
@@ -224,7 +224,7 @@ AUTH_RATE_LIMIT_MAX=10
 #### Frontend (`frontend` service)
 
 ```env
-VITE_API_URL="https://your-backend.up.railway.app/v1"
+VITE_API_URL="https://your-backend.up.railway.app"
 VITE_CONTRACT_ADDRESS=""     # optional
 VITE_RPC_URL=""              # optional
 ```
@@ -333,7 +333,7 @@ AUTH_RATE_LIMIT_MAX=10
 
 ```
 # Required
-VITE_API_URL=https://your-backend.up.railway.app/v1
+VITE_API_URL=https://your-backend.up.railway.app
 
 # Optional (chain verification)
 VITE_CONTRACT_ADDRESS=
