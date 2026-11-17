@@ -19,7 +19,12 @@ import { query, withTx } from '../src/db.js';
 import { contentHash } from '../src/lib/credential.js';
 import { initialModules } from '../../frontend/src/data/modules.js';
 import { diagnosticQuestions } from '../../frontend/src/data/questions.js';
-import { seedLearners, seedInvites, DEMO_PASSWORD } from '../../frontend/src/data/seed.js';
+import { seedLearners, seedInvites } from '../../frontend/src/data/seed.js';
+
+// Admin account config — read from backend env vars (fall back to defaults)
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@imari.rw';
+const ADMIN_NAME = process.env.ADMIN_NAME ?? 'Precious Mozia';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'demo1234';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -155,13 +160,12 @@ async function seedContent(): Promise<Map<string, string>> {
 }
 
 async function seedAccounts(): Promise<Map<string, string>> {
-  const userIdByEmail = new Map<string, string>();
-  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const userIdByEmail = new Map<string, string>();const passwordHash = await hashPassword(ADMIN_PASSWORD);
 
   const accounts = [
-    { name: 'Precious Mozia', email: 'admin@imari.rw', role: 'admin', university: 'African Leadership University' },
+    { name: ADMIN_NAME, email: ADMIN_EMAIL, role: 'admin', university: 'African Leadership University' },
     { name: 'Aline Uwimana', email: 'aline@alustudent.com', role: 'student', university: 'African Leadership University' },
-  ];
+];
   for (const a of accounts) {
     const { rows } = await query<{ id: string }>(
       `insert into users (email, password_hash, provider, role, full_name, email_verified_at)
@@ -179,10 +183,10 @@ async function seedAccounts(): Promise<Map<string, string>> {
       [rows[0]!.id, a.university, a.role],
     );
   }
-  console.log(`  ✓ demo accounts (${DEMO_PASSWORD} for both)`);
+  console.log(`  ✓ demo accounts (${ADMIN_PASSWORD} for both)`);
 
   // Demo learners (students only, password for the cohort)
-  const cohortHash = await hashPassword(DEMO_PASSWORD);
+  const cohortHash = await hashPassword(ADMIN_PASSWORD);
   for (const l of seedLearners) {
     if (userIdByEmail.has(l.email)) continue;
     const { rows } = await query<{ id: string }>(
@@ -403,7 +407,7 @@ const ELIGIBLE_SLUG = 'borrowing-wisely';
  * deletes it again, which keeps this account reusable.
  */
 async function seedEligibleLearner(): Promise<void> {
-  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const passwordHash = await hashPassword(ADMIN_PASSWORD);
   const { rows } = await query<{ id: string }>(
     `insert into users (email, password_hash, provider, role, full_name, email_verified_at)
      values ($1, $2, 'password', 'student', $3, now())
@@ -473,9 +477,9 @@ async function main(): Promise<void> {
   await seedCredentials(userIdByEmail, slugByModuleId);
   await seedEligibleLearner();
   console.log('Seed complete.');
-  console.log('  student: aline@alustudent.com / ' + DEMO_PASSWORD);
-  console.log('  eligible: ' + ELIGIBLE_EMAIL + ' / ' + DEMO_PASSWORD + ' (' + ELIGIBLE_SLUG + ')');
-  console.log('  admin:   admin@imari.rw / ' + DEMO_PASSWORD);
+  console.log('  student: aline@alustudent.com / ' + ADMIN_PASSWORD);
+  console.log('  eligible: ' + ELIGIBLE_EMAIL + ' / ' + ADMIN_PASSWORD + ' (' + ELIGIBLE_SLUG + ')');
+  console.log('  admin:   admin@imari.rw / ' + ADMIN_PASSWORD);
   console.log('  invite:  ALU-PILOT');
 }
 
