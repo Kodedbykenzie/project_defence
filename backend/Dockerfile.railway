@@ -1,0 +1,14 @@
+# Railway build: the build context is the REPOSITORY ROOT (service root directory "/"),
+# because the backend imports blockchain/exports and migrates from database/migrations.
+FROM node:20-alpine
+WORKDIR /repo
+COPY backend/package.json backend/package-lock.json backend/
+RUN cd backend && npm ci
+COPY backend backend
+COPY blockchain/exports blockchain/exports
+COPY database database
+RUN cd backend && npm run build
+WORKDIR /repo/backend
+ENV NODE_ENV=production
+# Apply pending migrations (idempotent, tracked in schema_migrations), then start.
+CMD ["sh", "-c", "npx tsx scripts/migrate.ts && node dist/index.js"]

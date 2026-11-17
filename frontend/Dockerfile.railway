@@ -1,0 +1,16 @@
+# Railway build: service root directory "/frontend". VITE_API_URL is baked in at build time.
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY . .
+ARG VITE_API_URL
+ARG VITE_CONTRACT_ADDRESS
+ARG VITE_RPC_URL
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+RUN npm install -g serve@14
+COPY --from=builder /app/dist ./dist
+CMD ["sh", "-c", "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"]
