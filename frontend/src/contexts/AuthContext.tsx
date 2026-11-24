@@ -149,10 +149,9 @@ export function AuthProvider({ children }: {children: ReactNode;}) {
       },
 
       logout: () => {
-        if (API_CONFIGURED) {
-          void authApi.logout();
-          setSession(null);
-        }
+        // Clear the API session from localStorage first, so the user
+        // is truly signed out even if the API request fails.
+        setSession(null);
         // Always clear the offline fallback session too — otherwise a stale
         // local account keeps the UI "signed in" after an API logout.
         setSessionId(null);

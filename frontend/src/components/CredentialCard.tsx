@@ -70,7 +70,6 @@ export function CredentialCard({ credential, showActions = true }: CredentialCar
             <ShieldCheckIcon className="h-4 w-4" /> Verify
           </Link>
         </div>
-      }
     </article>);
 
 }
