@@ -59,17 +59,17 @@ export function CredentialCard({ credential, showActions = true }: CredentialCar
         </div>
       </dl>
       {showActions &&
-      <div className="mt-auto flex border-t border-line">
+        <div className="mt-auto flex border-t border-line">
           <button type="button" onClick={copyLink} className="flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-brand-50 hover:text-brand-700">
             <CopyIcon className="h-4 w-4" /> Copy link
           </button>
           <Link
-          to={`/verify/${credential.id}`}
-          className="flex flex-1 items-center justify-center gap-2 border-l border-line py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-brand-50 hover:text-brand-700">
-          
+            to={`/verify/${credential.id}`}
+            className="flex flex-1 items-center justify-center gap-2 border-l border-line py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-brand-50 hover:text-brand-700">
             <ShieldCheckIcon className="h-4 w-4" /> Verify
           </Link>
         </div>
-    </article>);
-
+      }
+    </article>
+  );
 }
